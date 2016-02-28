@@ -2,18 +2,39 @@
 using System.Collections;
 using NewtonVR;
 
-public class CatchPokeball : NVRInteractableItem
+public class CatchPokeball : MonoBehaviour
 {
-    public NVRHand _rightHand;
+    private Rigidbody _rigid;
 
-    public override void UseButtonUp()
+    void Start()
     {
-        Debug.Log("Button Up - Right Hand position = " + _rightHand.transform.position);
+        _rigid = GetComponent<Rigidbody>();
 
-        base.UseButtonUp();
+        if (_rigid == null)
+        {
+            Debug.LogError("No rigidbody attached to the pokeball");
+            DestroyImmediate(this);
+        }
+    }
 
-        this.GetComponent<Rigidbody>().velocity = Vector3.zero;
-        this.GetComponent<Rigidbody>().angularVelocity = Vector3.zero;
-        this.GetComponent<Rigidbody>().AddForce(_rightHand.transform.position - this.transform.position, ForceMode.Impulse);
+    void Update()
+    {
+        foreach (NVRHand hand in NVRPlayer.Instance.Hands)
+        {
+            if (hand.UseButtonDown) // True only the frame the button is pressed.
+            {
+                Recall(hand.transform.position);
+            }
+        }
+    }
+
+    private void Recall(Vector3 pos)
+    {
+        // Stopping the current movement.
+        _rigid.velocity = Vector3.zero;
+        _rigid.angularVelocity = Vector3.zero;
+
+        // New movement.
+        _rigid.AddForce(pos - this.transform.position, ForceMode.Impulse);
     }
 }
