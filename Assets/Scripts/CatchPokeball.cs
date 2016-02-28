@@ -35,7 +35,10 @@ public class CatchPokeball : MonoBehaviour
         _rigid.angularVelocity = Vector3.zero;
 
         // New movement.
-        var vector = Vector3.Normalize(pos - this.transform.position);
-        _rigid.AddForce(vector * 5, ForceMode.Impulse);
+        var vectorDiff = pos - this.transform.position;
+        if (vectorDiff.magnitude > 0.1f)
+        {
+            _rigid.velocity = Vector3.Normalize(vectorDiff) * 5.0f;
+        }
     }
 }
