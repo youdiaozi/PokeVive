@@ -1,25 +1,19 @@
 ﻿using UnityEngine;
 using System.Collections;
+using NewtonVR;
 
-[RequireComponent(typeof(SteamVR_TrackedObject))]
-public class CatchPokeball : MonoBehaviour
+public class CatchPokeball : NVRInteractableItem
 {
-    public GameObject pokeball;
-    public Rigidbody attachPoint;
+    public NVRHand _rightHand;
 
-    private SteamVR_Controller.Device _device;
-
-    SteamVR_TrackedObject trackedObj;
-    FixedJoint joint;
-
-    void Awake()
+    public override void UseButtonUp()
     {
-        trackedObj = GetComponent<SteamVR_TrackedObject>();
-        _device = SteamVR_Controller.Input((int)trackedObj.index);
-    }
+        Debug.Log("Button Up - Right Hand position = " + _rightHand.transform.position);
 
-    void Update()
-    {
-        if (_device != null) return;
+        base.UseButtonUp();
+
+        this.GetComponent<Rigidbody>().velocity = Vector3.zero;
+        this.GetComponent<Rigidbody>().angularVelocity = Vector3.zero;
+        this.GetComponent<Rigidbody>().AddForce(_rightHand.transform.position - this.transform.position, ForceMode.Impulse);
     }
 }
