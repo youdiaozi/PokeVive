@@ -21,7 +21,7 @@ public class CatchPokeball : MonoBehaviour
     {
         foreach (NVRHand hand in NVRPlayer.Instance.Hands)
         {
-            if (hand.UseButtonDown) // True only the frame the button is pressed.
+            if (hand.UseButtonPressed)
             {
                 Recall(hand.transform.position);
             }
@@ -35,6 +35,7 @@ public class CatchPokeball : MonoBehaviour
         _rigid.angularVelocity = Vector3.zero;
 
         // New movement.
-        _rigid.AddForce(pos - this.transform.position, ForceMode.Impulse);
+        var vector = Vector3.Normalize(pos - this.transform.position);
+        _rigid.AddForce(vector * 5, ForceMode.Impulse);
     }
 }
