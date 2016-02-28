@@ -1,25 +1,44 @@
 ﻿using UnityEngine;
 using System.Collections;
+using NewtonVR;
 
-[RequireComponent(typeof(SteamVR_TrackedObject))]
 public class CatchPokeball : MonoBehaviour
 {
-    public GameObject pokeball;
-    public Rigidbody attachPoint;
+    private Rigidbody _rigid;
 
-    private SteamVR_Controller.Device _device;
-
-    SteamVR_TrackedObject trackedObj;
-    FixedJoint joint;
-
-    void Awake()
+    void Start()
     {
-        trackedObj = GetComponent<SteamVR_TrackedObject>();
-        _device = SteamVR_Controller.Input((int)trackedObj.index);
+        _rigid = GetComponent<Rigidbody>();
+
+        if (_rigid == null)
+        {
+            Debug.LogError("No rigidbody attached to the pokeball");
+            DestroyImmediate(this);
+        }
     }
 
     void Update()
     {
-        if (_device != null) return;
+        foreach (NVRHand hand in NVRPlayer.Instance.Hands)
+        {
+            if (hand.UseButtonPressed)
+            {
+                Recall(hand.transform.position);
+            }
+        }
+    }
+
+    private void Recall(Vector3 pos)
+    {
+        // Stopping the current movement.
+        _rigid.velocity = Vector3.zero;
+        _rigid.angularVelocity = Vector3.zero;
+
+        // New movement.
+        var vectorDiff = pos - this.transform.position;
+        if (vectorDiff.magnitude > 0.1f)
+        {
+            _rigid.velocity = Vector3.Normalize(vectorDiff) * 5.0f;
+        }
     }
 }
