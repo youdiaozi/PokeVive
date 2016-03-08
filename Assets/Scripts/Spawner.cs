@@ -32,9 +32,9 @@ public class Spawner : MonoBehaviour
             GameObject go = (GameObject)GameObject.Instantiate(_picks[chosen], position, Quaternion.identity);
             go.transform.SetParent(this.transform, true);
 
-            if (go.GetComponent<PokemonWalk>() == null)
+            if (go.GetComponent<Pokemon>() == null)
             {
-                go.AddComponent<PokemonWalk>();
+                go.AddComponent<Pokemon>();
             }
 
             SphereCollider coll = go.GetComponent<SphereCollider>();
