@@ -1,16 +1,45 @@
 ﻿using UnityEngine;
 using System.Collections;
 
+
+/// List of required animations per Pokemon:
+/// - [OPTIONAL BUT NICE] taunt (at the beginning of the battle for a wild pokemon, and when thrown out of the pokeball for a domesticated pokemon in good shape).
+/// - idle loop when in good shape. [100-51%] HP. There will be no HP bar, so the idle animation is key to understanding the shape of your pokemon. There are 3 HP bar colors in Pokemon, so I suggest at least 3 animations. With 2 bars we can determine OHKO, 2HKO, 3H+KO.
+/// - idle loop when in bad shape. [50%-20%] HP. Note: we can create this animation by blending "good shape" and "severely injured" within Unity.
+/// - idle loop when severely injured. [19%-0%[. Note: at this point the Pokemon can't move to avoid attacks, but he can still move to attack.
+/// - strafe/jump left to avoid incoming vertical attacks. Distance ~= 1.5m.
+/// - strafe/jump right to avoid incoming vertical attacks. Distance ~= 1.5m.
+/// - [OPTIONAL] jump up to avoid horizontal incoming attacks. Animation in 2 parts: jump up then fall down. Unused for birds and levitating pokemons.
+/// - [OPTIONAL] block? may be used to tank an attack and take reduced damage, but with a faster counter-attack delay.
+/// - run forward loop (used to go back to the battle spot after having been ejected, for wild pokemons to run away, to run to the opponent before attacking him, etc.)
+/// - take damage (from idle position, so at least 1 anim, ideally 3 animations).
+/// - [OPTIONAL] take damage and fall down from jumping up position.
+/// - [OPTIONAL] take damage from blocking position.
+/// - ko (from idle position, so at least 1 anim, ideally 3 animations).
+/// 
+/// Situational (up to 3 attacks per Pokémon):
+/// - breath (fire/water/etc.) (from idle position)
+/// - attack with pawn claws
+/// - attack with feet
+/// - tail hit
+/// - high kick balayette rotatif
+/// - etc.
+/// 
+
 public enum PokemonState
 {
     ERROR,
     Idle,
     Roaming,
     Swallowed,
-    TryingToEscapeBall
+    TryingToEscapeBall,
+    BeingReleased
 };
 public class Pokemon : MonoBehaviour
 {
+    public string _name { get; private set; }
+    public Deformation _deformation;
+
     private const float _range = 5f;
     private Vector3 _dest;
     private Transform _tr;
@@ -18,6 +47,7 @@ public class Pokemon : MonoBehaviour
     private Animator _anim;
     private Renderer _rend;
     private Vector3 _baseLocalScale;
+    private Vector3 _baseBoundingBox;
 
     private float _waitTime = 0f;
 
@@ -29,6 +59,9 @@ public class Pokemon : MonoBehaviour
     private Vector3 _pathToBall;
     private float _captureTime = -1f;
 
+    private Color _emissionTargetColor = Color.black;
+    private Color _emissionOriginalColor = Color.black;
+
     private Pokeball _homeBall = null;
 
     void Start()
@@ -36,8 +69,17 @@ public class Pokemon : MonoBehaviour
         _anim = GetComponent<Animator>();
         _nav = GetComponent<NavMeshAgent>();
         _tr = this.transform;
+        _name = _tr.name.Replace("(Clone)", "");
+
         _baseLocalScale = _tr.localScale;
         _rend = this.GetComponentInChildren<Renderer>();
+
+        foreach (Material mat in _rend.materials)
+        {
+            mat.EnableKeyword("_EMISSION");
+        }
+
+        _baseBoundingBox = _rend.bounds.size;
     }
 	
 	void Update()
@@ -48,14 +90,14 @@ public class Pokemon : MonoBehaviour
 
             if (timeLeft <= 0f)
             {
-                _state = PokemonState.TryingToEscapeBall;
+                _state = PokemonState.TryingToEscapeBall; // This should actually start when the pokeball hits the ground.
 
                 _homeBall.EndSwallow();
                 this.gameObject.SetActive(false);
             }
             else
             {
-                float scaleRatio = Mathf.Pow(timeLeft * (1 - _shrinkingRatio), 3f) + _shrinkingRatio;
+                float scaleRatio = Mathf.Pow(timeLeft * (1 - _shrinkingRatio), 2f) + _shrinkingRatio;
                 _tr.localScale = _baseLocalScale * scaleRatio;
 
                 float threshold = 0.9f;
@@ -66,6 +108,24 @@ public class Pokemon : MonoBehaviour
             }
 
             return;
+        }
+        else if (_state == PokemonState.BeingReleased)
+        {
+            if (_tr.localScale != _baseLocalScale)
+            {
+                _tr.localScale += _baseLocalScale * 6f * Time.deltaTime;
+
+                if ((_tr.localScale - _baseLocalScale).magnitude < 0.01f)
+                {
+                    _tr.localScale = _baseLocalScale;
+                }
+            }
+
+            if (_deformation.DeformationHasEnded())
+            {
+                _emissionOriginalColor = Color.white;
+                _emissionTargetColor = Color.black;
+            }
         }
         else if (_state == PokemonState.Roaming)
         {
@@ -82,6 +142,23 @@ public class Pokemon : MonoBehaviour
                 {
                     _nav.SetDestination(new Vector3(Random.Range(-_range, _range), 0f, Random.Range(-_range, _range)));
                 }
+            }
+        }
+
+        Color _currentEmissionColor = _rend.material.GetColor("_EmissionColor");
+        if (_emissionTargetColor != _currentEmissionColor) // We assume all the materials are at the same emission level and none of the materials use this property.
+        {
+            foreach (Material mat in _rend.materials)
+            {
+                Color newEmission = _currentEmissionColor + (_emissionTargetColor - _emissionOriginalColor) * 2f * Time.deltaTime;
+
+                // If we went passed the target emission, we set it right.
+                if (Mathf.Clamp01(newEmission.r) != newEmission.r)
+                {
+                    newEmission = _emissionTargetColor;
+                }
+
+                mat.SetColor("_EmissionColor", newEmission); // 0.5 second transition.
             }
         }
 	}
@@ -106,7 +183,10 @@ public class Pokemon : MonoBehaviour
         //destination.Normalize();
 
         Bounds bounds = _rend.bounds;
-        destination.y = ball.transform.position.y + Mathf.Max(1f, bounds.extents.y); // Rajouter une telle hauteur va faire traverser les Pokémons volants au dessus du joueur à la Pokéball.
+        destination.y = ball.transform.position.y + Mathf.Max(0.6f, bounds.extents.y); // Rajouter une telle hauteur va faire traverser les Pokémons volants au dessus du joueur à la Pokéball.
+
+        _emissionOriginalColor = _rend.material.GetColor("_EmissionColor");
+        _emissionTargetColor = Color.white;
 
         return destination;       
     }
@@ -122,8 +202,35 @@ public class Pokemon : MonoBehaviour
         // Calculating the shrinking ratio for the Pokémon to fit within the Pokéball.
         Bounds bounds = _rend.bounds;
         float diagonal = bounds.size.magnitude; // La magnitude de la taille de la bounding box représente la diagonale de cette boite et est un bon indicateur du volume du personne.
-        _shrinkingRatio = Mathf.Sqrt(0.03f) / diagonal; // Attention aux divisions par 0 ! Racine de 300 est la diagonale de la bounding box de la pokeball.
+        _shrinkingRatio = Mathf.Sqrt(0.018252f) / diagonal; // Attention aux divisions par 0 ! Racine de 0.018252 est la diagonale de la bounding box de la pokeball.
 
         _pathToBall = _tr.position - ball.transform.position;
+    }
+
+    public void ReleaseFromPokeball()
+    {
+        _state = PokemonState.BeingReleased;
+
+        _anim.speed = 1f;
+        _nav.enabled = true;
+
+        _rend.material.SetColor("_EmissionColor", Color.white);
+        _emissionOriginalColor = Color.white;
+        _emissionTargetColor = Color.white;
+
+        if (_deformation != null)
+        {
+            if (_deformation._animator == null)
+            {
+                _deformation._animator = _anim;
+            }
+
+            _deformation.LaunchDeformation();
+        }
+    }
+
+    public float GetRealHeight()
+    {
+        return _baseBoundingBox.y;
     }
 }

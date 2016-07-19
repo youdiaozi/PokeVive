@@ -25,16 +25,37 @@ public class Spawner : MonoBehaviour
             return;
         }
 
-	    for (int i = 0; i <= _amount; i++)
+        WildPokemons = new List<SphereCollider>();
+        for (int i = 0; i <= _amount; i++)
         {
             int chosen = Random.Range(0, _picks.Length);
             Vector3 position = new Vector3(Random.Range(2f, 5f), 0f, Random.Range(-4f, 4f));
             GameObject go = (GameObject)GameObject.Instantiate(_picks[chosen], position, Quaternion.identity);
             go.transform.SetParent(this.transform, true);
 
-            if (go.GetComponent<Pokemon>() == null)
+            Pokemon pkmn = go.GetComponent<Pokemon>();
+            if (pkmn == null)
             {
-                go.AddComponent<Pokemon>();
+                pkmn = go.AddComponent<Pokemon>();
+            }
+
+            if (pkmn._deformation == null)
+            {
+                Deformation deformation = go.GetComponentInChildren<Deformation>();
+                if (deformation == null)
+                {
+
+                    Transform armature = go.transform.Find("Armature");
+                    if (armature != null)
+                    {
+                        deformation = armature.gameObject.AddComponent<Deformation>();
+                    }
+                }
+
+                if (deformation != null)
+                {
+                    pkmn._deformation = deformation;
+                }
             }
 
             SphereCollider coll = go.GetComponent<SphereCollider>();

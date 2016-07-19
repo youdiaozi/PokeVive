@@ -1,7 +1,7 @@
 ﻿using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
-using NewtonVR;
+using TMPro;
 
 public enum PokeballState // Only one of those states can be true at a time.
 {
@@ -17,7 +17,9 @@ public enum PokeballState // Only one of those states can be true at a time.
 
     // Relative to an empty Pokeball.
     BouncingBack, // After an empty Pokeball touches a wild Pokemon, the first thing it does it going backward.
-    Swallowing, 
+    Opening, // The Pokeball is locked into the air and opens which releases its capture ray.
+    Swallowing, // The Pokemon is being dragged into the pokeball.
+    Closing, // The pokeball closes before falling down.
     Falling, // Before shaking.
     Shaking, // Last step before validating a capture.
     Breaking, // When the capture failed. This is actually not a state, but only an event.
@@ -31,16 +33,19 @@ public enum PokeballState // Only one of those states can be true at a time.
 public class Pokeball : MonoBehaviour
 {
     public bool _editorTest = false;
+    public GrabbableObj _grabbableObj;
+    public TextMeshPro _pkmnName;
 
     private const float _pokeballCatchRadius = 0.1f; // The real pokeball radius is 0.05.
 
     private Transform _tr;
     private Rigidbody _rigid;
-    private NVRInteractableItem _interactableItem;
+    private Animator _animator;
     private List<Vector3> _verticesToDraw = new List<Vector3>(); // A virer.
 
     private bool _shrinked = false;
     private bool _isRecalling = false; // True when the Pokéball is trying to call back its Pokémon using its red laser.
+    private bool _isPokemonInside = false; // False when the Pokemon contains a Pokemon but the pkmn is out of the pokeball, for a battle for instance.
     private Pokemon _content = null; // The Pokémon the Pokéball contains.
     private Pokemon _temporaryContent = null; // The Pokémon the Pokéball contains.
     private PokeballState _state = PokeballState.Lying;
@@ -54,7 +59,7 @@ public class Pokeball : MonoBehaviour
     {
         _tr = this.transform;
         _rigid = GetComponent<Rigidbody>();
-        _interactableItem = GetComponent<NVRInteractableItem>();
+        _animator = GetComponent<Animator>();
 
         if (_editorTest)
         {
@@ -66,36 +71,85 @@ public class Pokeball : MonoBehaviour
             Debug.LogError("No rigidbody attached to the pokeball");
             DestroyImmediate(this);
         }
+
+        if (_animator == null)
+        {
+            Debug.LogError("No animator attached to the pokeball");
+            DestroyImmediate(this);
+        }
+
+        if (_content == null)
+        {
+            _pkmnName.text = "";
+        }
     }
 
     void Update()
     {
-        foreach (NVRHand hand in NVRPlayer.Instance.Hands)
+        _verticesToDraw.Clear(); // A virer.
+
+        if (Hub.rightHand.index != SteamVR_TrackedObject.EIndex.None)
         {
-            if (hand.UseButtonPressed)
+            SteamVR_Controller.Device device = SteamVR_Controller.Input((int)Hub.rightHand.index);
+            if (device.GetPress(SteamVR_Controller.ButtonMask.ApplicationMenu))
             {
-                Recall(hand.transform.position);
+                Recall(Hub.rightHand.transform.position);
             }
         }
 
-        _verticesToDraw.Clear(); // A virer.
-
-
-
         // --- Any kind of Pokeball. ---
-        if (_state != PokeballState.Held && _interactableItem.IsAttached)
+        if (_state != PokeballState.Held && _grabbableObj.IsGrabbed())
         {
             _state = PokeballState.Held;
         }
 
-        if (_state == PokeballState.Held && !_interactableItem.IsAttached)
+        if (_state == PokeballState.Held && !_grabbableObj.IsGrabbed())
         {
             _state = PokeballState.Thrown;
         }
 
-        if (false) // Appuies bouton
+        if (false) // Button pushed.
         {
             Shrink();
+        }
+
+        if (_state == PokeballState.BouncingBack)
+        {
+            Vector3 distToDest = _destination - _tr.position;
+
+            if (distToDest.magnitude > 0.01f)
+            {
+                float speed = 4f;
+
+                _tr.position += distToDest * speed * Time.deltaTime;
+
+                Pokemon targetPkmn = _content;
+                if (targetPkmn == null)
+                {
+                    targetPkmn = _temporaryContent;
+                }
+
+                Vector3 destinationAngle = targetPkmn.transform.position - _tr.position;
+                destinationAngle.Normalize();
+                _tr.forward = Vector3.Slerp(_tr.forward, destinationAngle, speed * 2f * Time.deltaTime);
+            }
+            else
+            {
+                if (_content == null)
+                {
+                    _state = PokeballState.Opening;
+                    Freeze(true);
+
+                    _animator.SetBool("Open", true);
+                }
+                else if (_isPokemonInside) // Double.
+                {
+                    _state = PokeballState.Opening;
+                    Freeze(true);
+
+                    _animator.SetBool("Open", true);
+                }
+            }
         }
 
         // --- Empty Pokéball. ---
@@ -104,30 +158,6 @@ public class Pokeball : MonoBehaviour
             if (_state == PokeballState.Thrown && !_shrinked)
             {
                 CheckCapture();
-            }
-
-            if (_state == PokeballState.BouncingBack)
-            {
-                Vector3 distToDest = _destination - _tr.position;
-
-                if (distToDest.magnitude > 0.05f)
-                {
-                    float speed = 4f;
-
-                    _tr.position += distToDest * speed * Time.deltaTime;
-
-                    Vector3 destinationAngle = _temporaryContent.transform.position - _tr.position;
-                    destinationAngle.Normalize();
-                    _tr.forward = Vector3.Slerp(_tr.forward, destinationAngle, speed * 2f * Time.deltaTime);
-                }
-                else
-                {
-                    _state = PokeballState.Swallowing;
-                    Freeze(true);
-
-                    // Do calls on the Pokemon.
-                    _temporaryContent.Swallow(this);
-                }
             }
 
             if (_state == PokeballState.Shaking)
@@ -153,7 +183,27 @@ public class Pokeball : MonoBehaviour
         {
             if (!_editorTest)
             {
-                _state = PokeballState.Lying;
+                if (_content != null && _isPokemonInside && collision.contacts[0].point.y < 0.05f)
+                {
+                    _content.gameObject.SetActive(true);
+
+                    _destination = _tr.position + Camera.main.transform.right + Vector3.up * Mathf.Max(1f, _content.GetRealHeight() * 1.3f);
+                    _content.transform.position = _tr.position;
+                    _content.transform.localScale = Vector3.zero;
+
+                    Vector3 forward = _tr.position - Camera.main.transform.position;
+                    forward.y = 0f;
+                    forward.Normalize();
+
+                    _content.transform.LookAt(_tr.position + forward, Vector3.up);
+
+                    Freeze(true);
+                    _state = PokeballState.BouncingBack;
+                }
+                else
+                {
+                    _state = PokeballState.Lying;
+                }
             }
         }
         else if (_state == PokeballState.Falling)
@@ -289,9 +339,8 @@ public class Pokeball : MonoBehaviour
 
     public void EndSwallow()
     {
-        _state = PokeballState.Falling;
-
-        Freeze(false);
+        _state = PokeballState.Closing;
+        _animator.SetBool("Open", false);
     }
 
     private void ShakeOnce()
@@ -310,17 +359,27 @@ public class Pokeball : MonoBehaviour
             _rigid.AddForce(force, ForceMode.VelocityChange);
 
             StartCoroutine("BalanceShakeForce", -force);
-            Invoke("ShakeOnce", Random.Range(1.3f, 2f) + (_shakeLeft == 1 ? 1.2f : 0f));
+            float delay = Random.Range(1.3f, 2f) + (_shakeLeft == 1 ? 1.2f : 0f);
+
+            if (_editorTest)
+            {
+                delay /= 5f;
+            }
+
+            Invoke("ShakeOnce", delay);
         }
         else
         {
             // The capture is a success!
 
             _state = PokeballState.Lying;
+            _isPokemonInside = true;
 
             _shakeLeft = -1;
 
             _content = _temporaryContent;
+            _pkmnName.text = _content._name; 
+
             _temporaryContent = null;
             StopMove();
 
@@ -342,5 +401,54 @@ public class Pokeball : MonoBehaviour
     private void Shrink()
     {
         _shrinked = !_shrinked;
+    }
+
+    private void OpeningDone()
+    {
+        if (_state == PokeballState.Opening)
+        {
+            if (_content == null)
+            {
+                // Is called by the animation when the pokeball is fully opened.
+                _state = PokeballState.Swallowing;
+
+                // Do calls on the Pokemon.
+                _temporaryContent.Swallow(this);
+            }
+            else if (_isPokemonInside)
+            {
+                _state = PokeballState.Releasing;
+
+                _isPokemonInside = false;
+
+                // Do calls on the Pokemon.
+                _content.ReleaseFromPokeball();
+
+                // We instantly close the Pokeball for now, I need to check this behaviour.
+                _state = PokeballState.Closing;
+                _animator.SetBool("Open", false);
+            }
+        }
+    }
+
+    private void ClosingDone()
+    {
+        if (_state == PokeballState.Closing)
+        {
+            if (_content == null)
+            {
+                // Is called by the animation when the pokeball is fully opened.
+                _state = PokeballState.Falling;
+
+                Freeze(false);
+            }
+            else
+            {
+                // The ball goes back to the player's hand.
+                _state = PokeballState.Backing;
+
+                Freeze(false);
+            }
+        }
     }
 }
