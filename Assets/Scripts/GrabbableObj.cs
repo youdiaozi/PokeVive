@@ -2,11 +2,15 @@
 using System.Collections;
 using System.Collections.Generic;
 
+public delegate void GrabbedEventHandler();
+
 public class GrabbableObj : MonoBehaviour
 {
     public string _identity;
     public bool _scaleChangeOnClip;
     public PhotoSnap _snapAtStart;
+
+    public event GrabbedEventHandler Grabbed;
 
     private Transform _tr;
     private Vector3 _defaultScale;
@@ -22,8 +26,10 @@ public class GrabbableObj : MonoBehaviour
 
     private bool _isBeingGrabbed = false;
     private bool _isClipped = false;
+    private bool _isGrabbable = true;
 
     private Transform _defaultParent;
+    private Transform _attachPoint = null;
 
     void Start()
     {
@@ -71,11 +77,25 @@ public class GrabbableObj : MonoBehaviour
 
     void Update()
     {
+        if (_attachPoint != null)
+        {
+            _tr.localRotation = Quaternion.Slerp(_tr.localRotation, _attachPoint.localRotation, 50f * Time.deltaTime);
+            _tr.localPosition = Vector3.Slerp(_tr.localPosition, _attachPoint.localPosition, 50f * Time.deltaTime);
+        }
+
         if (_transitionTime < _transitionDuration)
         {
             _transitionTime += Time.deltaTime;
             float ratio = Mathf.Clamp01(_transitionTime / _transitionDuration);
 
+            if (_anchor == null)
+            {
+                Debug.LogError("no anchor on " + this.name);
+            }
+            else if (_anchor._snappingPoint == null)
+            {
+                Debug.LogError("no snappingPoint on " + this.name);
+            }
             _tr.localPosition = Vector3.Lerp(_tr.localPosition, _anchor._snappingPoint.localPosition, ratio);
             _tr.localRotation = Quaternion.Slerp(_tr.localRotation, _anchor._snappingPoint.localRotation, ratio);
 
@@ -127,8 +147,13 @@ public class GrabbableObj : MonoBehaviour
         }
     }
 
-    public void StartGrabbing(Transform parent, bool adaptScale = false)
+    public bool StartGrabbing(Transform parent, bool adaptScale = false)
     {
+        if (!_isGrabbable)
+        {
+            return false;
+        }
+
         Vector3 scaleBefore = _tr.lossyScale;
         this.transform.SetParent(parent, true);
         Vector3 scaleAfter = _tr.lossyScale;
@@ -145,7 +170,7 @@ public class GrabbableObj : MonoBehaviour
 
         if (_isClipped && _anchor != null)
         {
-            ClipEventManager.singleton.UnclipEvent(_identity, _anchor._name);
+            //ClipEventManager.singleton.UnclipEvent(_identity, _anchor._name);
         }
 
         if (_isClipped && !adaptScale)
@@ -155,6 +180,13 @@ public class GrabbableObj : MonoBehaviour
             _isClipped = false;
             _anchor = null;
         }
+
+        if (Grabbed != null)
+        {
+            Grabbed.Invoke();
+        }
+
+        return true;
     }
 
     public void StopGrabbing(Vector3? force = null)
@@ -234,12 +266,12 @@ public class GrabbableObj : MonoBehaviour
         
         StartGrabbing(anchor._snappingPoint, true);
 
-        ClipEventManager.singleton.ClipEvent(_identity, _anchor._name);
+        //ClipEventManager.singleton.ClipEvent(_identity, _anchor._name);
     }
 
     public void Unclip(string caller)
     {
-        ClipEventManager.singleton.UnclipEvent(_identity, _anchor._name);
+        //ClipEventManager.singleton.UnclipEvent(_identity, _anchor._name);
         Debug.Log("isClipped = false " + caller);
         _isClipped = false;
         _anchor = null;
@@ -249,5 +281,20 @@ public class GrabbableObj : MonoBehaviour
     public bool IsGrabbed()
     {
         return _isBeingGrabbed;
+    }
+
+    public void SetGrabbable(bool state_)
+    {
+        _isGrabbable = state_;
+    }
+
+    public bool IsGrabbable()
+    {
+        return _isGrabbable;
+    }
+
+    public void SetAttachPoint(Transform attachPoint_)
+    {
+        _attachPoint = attachPoint_;
     }
 }

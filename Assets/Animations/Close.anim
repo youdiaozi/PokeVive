@@ -66,31 +66,6 @@ AnimationClip:
       serializedVersion: 2
       m_Curve:
       - time: 0
-        value: 2
-        inSlope: 0
-        outSlope: 0
-        tangentMode: 10
-      - time: 0.75
-        value: 2
-        inSlope: Infinity
-        outSlope: -0.21544826
-        tangentMode: 7
-      - time: 1
-        value: 0
-        inSlope: -18.464287
-        outSlope: -20
-        tangentMode: 1
-      m_PreInfinity: 2
-      m_PostInfinity: 2
-      m_RotationOrder: 4
-    attribute: m_Range
-    path: Spotlight
-    classID: 108
-    script: {fileID: 0}
-  - curve:
-      serializedVersion: 2
-      m_Curve:
-      - time: 0
         value: 4
         inSlope: 0
         outSlope: 0
@@ -131,12 +106,6 @@ AnimationClip:
       script: {fileID: 0}
       classID: 4
       customType: 14
-      isPPtrCurve: 0
-    - path: 1106452668
-      attribute: 514968105
-      script: {fileID: 0}
-      classID: 108
-      customType: 25
       isPPtrCurve: 0
     - path: 1106452668
       attribute: 898800009
@@ -316,31 +285,6 @@ AnimationClip:
     attribute: localEulerAnglesRaw.z
     path: Monsterball/Origin/Ball
     classID: 4
-    script: {fileID: 0}
-  - curve:
-      serializedVersion: 2
-      m_Curve:
-      - time: 0
-        value: 2
-        inSlope: 0
-        outSlope: 0
-        tangentMode: 10
-      - time: 0.75
-        value: 2
-        inSlope: Infinity
-        outSlope: -0.21544826
-        tangentMode: 7
-      - time: 1
-        value: 0
-        inSlope: -18.464287
-        outSlope: -20
-        tangentMode: 1
-      m_PreInfinity: 2
-      m_PostInfinity: 2
-      m_RotationOrder: 4
-    attribute: m_Range
-    path: Spotlight
-    classID: 108
     script: {fileID: 0}
   - curve:
       serializedVersion: 2

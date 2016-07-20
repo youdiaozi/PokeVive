@@ -92,31 +92,6 @@ AnimationClip:
     path: Spotlight
     classID: 108
     script: {fileID: 0}
-  - curve:
-      serializedVersion: 2
-      m_Curve:
-      - time: 0
-        value: 0
-        inSlope: 6.6666665
-        outSlope: 0.45060787
-        tangentMode: 1
-      - time: 0.75
-        value: 2
-        inSlope: 4.995805
-        outSlope: Infinity
-        tangentMode: 25
-      - time: 1
-        value: 2
-        inSlope: 0
-        outSlope: 0
-        tangentMode: 10
-      m_PreInfinity: 2
-      m_PostInfinity: 2
-      m_RotationOrder: 4
-    attribute: m_Range
-    path: Spotlight
-    classID: 108
-    script: {fileID: 0}
   m_PPtrCurves: []
   m_SampleRate: 60
   m_WrapMode: 0
@@ -139,12 +114,6 @@ AnimationClip:
       isPPtrCurve: 0
     - path: 1106452668
       attribute: 898800009
-      script: {fileID: 0}
-      classID: 108
-      customType: 25
-      isPPtrCurve: 0
-    - path: 1106452668
-      attribute: 514968105
       script: {fileID: 0}
       classID: 108
       customType: 25
@@ -379,31 +348,6 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_Intensity
-    path: Spotlight
-    classID: 108
-    script: {fileID: 0}
-  - curve:
-      serializedVersion: 2
-      m_Curve:
-      - time: 0
-        value: 0
-        inSlope: 6.6666665
-        outSlope: 0.45060787
-        tangentMode: 1
-      - time: 0.75
-        value: 2
-        inSlope: 4.995805
-        outSlope: Infinity
-        tangentMode: 25
-      - time: 1
-        value: 2
-        inSlope: 0
-        outSlope: 0
-        tangentMode: 10
-      m_PreInfinity: 2
-      m_PostInfinity: 2
-      m_RotationOrder: 4
-    attribute: m_Range
     path: Spotlight
     classID: 108
     script: {fileID: 0}

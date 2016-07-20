@@ -33,12 +33,15 @@ public enum PokemonState
     Roaming,
     Swallowed,
     TryingToEscapeBall,
+    StoredInPokeball,
     BeingReleased
 };
 public class Pokemon : MonoBehaviour
 {
     public string _name { get; private set; }
     public Deformation _deformation;
+    public ParticleSystem _spawningParticle;
+    public ParticleSystem _recallingParticle;
 
     private const float _range = 5f;
     private Vector3 _dest;
@@ -115,13 +118,13 @@ public class Pokemon : MonoBehaviour
             {
                 _tr.localScale += _baseLocalScale * 6f * Time.deltaTime;
 
-                if ((_tr.localScale - _baseLocalScale).magnitude < 0.01f)
+                if (_tr.localScale.magnitude > _baseLocalScale.magnitude)
                 {
                     _tr.localScale = _baseLocalScale;
                 }
             }
 
-            if (_deformation.DeformationHasEnded())
+            if (_deformation.DeformationHasEnded() && !_spawningParticle.isPlaying)
             {
                 _emissionOriginalColor = Color.white;
                 _emissionTargetColor = Color.black;
@@ -150,7 +153,7 @@ public class Pokemon : MonoBehaviour
         {
             foreach (Material mat in _rend.materials)
             {
-                Color newEmission = _currentEmissionColor + (_emissionTargetColor - _emissionOriginalColor) * 2f * Time.deltaTime;
+                Color newEmission = _currentEmissionColor + (_emissionTargetColor - _emissionOriginalColor) * 1.5f * Time.deltaTime;
 
                 // If we went passed the target emission, we set it right.
                 if (Mathf.Clamp01(newEmission.r) != newEmission.r)
@@ -165,7 +168,7 @@ public class Pokemon : MonoBehaviour
 
     public Vector3 Touched(Pokeball ball)
     {
-        // Returns the position the Pokeball bounce back at.
+        // Returns the position the Pokeball should bounce back at.
 
         Debug.Log("Touched method called.");
 
@@ -227,6 +230,21 @@ public class Pokemon : MonoBehaviour
 
             _deformation.LaunchDeformation();
         }
+
+        if (_spawningParticle != null)
+        {
+            if (!_spawningParticle.isStopped)
+            {
+                _spawningParticle.Stop();
+            }
+
+            //_spawningParticle.Play();
+        }
+    }
+
+    public void StoreInPokeball()
+    {
+        _state = PokemonState.StoredInPokeball;
     }
 
     public float GetRealHeight()

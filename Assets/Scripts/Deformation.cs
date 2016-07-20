@@ -5,7 +5,7 @@ using System.Collections.Generic;
 public class Deformation : MonoBehaviour
 {
     public float _maxDeformationRatio = 1f;
-    public float _decaySpeed = 2f;
+    public float _decaySpeed = 4f;
     public Animator _animator;
 
     private Transform _tr;
@@ -39,10 +39,7 @@ public class Deformation : MonoBehaviour
 
             if (_currentDeformationRatio == 0f)
             {
-                if (_animator != null)
-                {
-                    _animator.enabled = true;
-                }
+                EndDeformation();
             }
         }
 	}
@@ -85,12 +82,31 @@ public class Deformation : MonoBehaviour
             Vector3 los = child.lossyScale;
             Vector3 loc = child.localScale;
 
+            // We avoid dividing by zero.
+            if (los.x == 0f || los.y == 0f || los.z == 0f)
+            {
+                continue;
+            }
+
             Vector3 newLos = new Vector3();
             newLos.x = _childrenOriginalLossyScaleList[i].x * (1f + Random.Range(_currentDeformationRatio * -0.3f, _currentDeformationRatio));
             newLos.y = _childrenOriginalLossyScaleList[i].y * (1f + Random.Range(_currentDeformationRatio * -0.3f, _currentDeformationRatio));
             newLos.z = _childrenOriginalLossyScaleList[i].z * (1f + Random.Range(_currentDeformationRatio * -0.3f, _currentDeformationRatio));
 
             child.transform.localScale = new Vector3(loc.x * newLos.x / los.x, loc.y * newLos.y / los.y, loc.z * newLos.z / los.z);
+        }
+    }
+
+    void EndDeformation()
+    {
+        for (int i = 0; i < _childrenList.Count; i++)
+        {
+            _childrenList[i].transform.localScale = _childrenOriginalLocalScaleList[i];
+        }
+
+        if (_animator != null)
+        {
+            _animator.enabled = true;
         }
     }
 

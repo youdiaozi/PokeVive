@@ -7,17 +7,13 @@ public class ViveController : MonoBehaviour
 {
     public Rigidbody _attach;
     public ViveController _otherHand;
-
-    private bool _isInGlobe = false;
+    public Transform _attachPoint;
 
     private Transform _tr;
-    private Material _brushHeadMaterial;
     private SteamVR_TrackedObject _trackedObj;
     private GrabbableObj _grabbedObj = null;
     private List<GrabbableObj> _touchedObj = new List<GrabbableObj>();
     private Vector3 _lastPos;
-
-    private ParticleSystem _currentTrail = null;
     
     void Start()
     {
@@ -33,8 +29,9 @@ public class ViveController : MonoBehaviour
 
             if (device != null)
             {
-                if (device.GetPress(SteamVR_Controller.ButtonMask.Trigger) 
+                if (device.GetPress(SteamVR_Controller.ButtonMask.Trigger)
                     && device.GetPressDown(SteamVR_Controller.ButtonMask.ApplicationMenu)
+                    && device.GetPress(SteamVR_Controller.ButtonMask.Touchpad)
                     && device.GetPress(SteamVR_Controller.ButtonMask.Grip))
                 {
                     SceneManager.LoadScene(SceneManager.GetActiveScene().name);
@@ -44,7 +41,7 @@ public class ViveController : MonoBehaviour
                 {
                     if (Hub.pokeball == null)
                     {
-                        Debug.LogError("No pokeball assigned in the hub.");
+                        Debug.LogWarning("No pokeball assigned in the hub.");
                     }
                     else
                     {
@@ -81,7 +78,8 @@ public class ViveController : MonoBehaviour
                     //DropObj((this.transform.position - _lastPos) * 100f);
                 }
 
-                if (device.GetPress(SteamVR_Controller.ButtonMask.Grip))
+                if (device.GetPress(SteamVR_Controller.ButtonMask.Grip) 
+                    && device.GetPress(SteamVR_Controller.ButtonMask.ApplicationMenu))
                 {
                     // Mécanique de déplacement.
                     Vector3 delta = _tr.position - _lastPos; // Here we get the vector that represents the move of the hand since it clicks.
@@ -98,15 +96,9 @@ public class ViveController : MonoBehaviour
     {
         GrabbableObj grabbableObj = other.gameObject.GetComponent<GrabbableObj>();
 
-        if (grabbableObj != null && !_touchedObj.Contains(grabbableObj))
+        if (grabbableObj != null && grabbableObj.IsGrabbable() && !_touchedObj.Contains(grabbableObj))
         {
             _touchedObj.Add(grabbableObj);
-        }
-
-        if (other.name == "Earth")
-        {
-            _isInGlobe = true;
-            //_joint.connectedBody = other.GetComponent<Rigidbody>();
         }
     }
 
@@ -117,21 +109,18 @@ public class ViveController : MonoBehaviour
         {
             _touchedObj.Remove(grabbableObj);
         }
-
-        if (other.name == "Earth")
-        {
-            _isInGlobe = false;
-            //_joint.connectedBody = null;
-        }
     }
 
     private void GrabObj(GrabbableObj grabbableObj)
     {
-        this.DropObj();
-        _otherHand.DropObj(grabbableObj);
-
-        grabbableObj.StartGrabbing(this.transform);
-        _grabbedObj = grabbableObj;
+        if (grabbableObj.StartGrabbing(this.transform))
+        {
+            grabbableObj.SetAttachPoint(_attachPoint);
+            //grabbableObj.Clip(_anchor, this.name);
+            this.DropObj();
+            _otherHand.DropObj(grabbableObj);
+            _grabbedObj = grabbableObj;
+        }
     }
 
     public void DropObj(GrabbableObj matchingObj = null)
@@ -145,6 +134,7 @@ public class ViveController : MonoBehaviour
             return;
         }
 
+        _grabbedObj.SetAttachPoint(null);
         _grabbedObj.StopGrabbing();
         _grabbedObj = null;
     }
@@ -156,6 +146,7 @@ public class ViveController : MonoBehaviour
             return;
         }
 
+        _grabbedObj.SetAttachPoint(null);
         _grabbedObj.StopGrabbing(force);
         _grabbedObj = null;
     }
@@ -171,7 +162,9 @@ public class ViveController : MonoBehaviour
 
         if (device != null)
         {
+            _grabbedObj.SetAttachPoint(null);
             _grabbedObj.StopGrabbingBis(device.velocity, device.angularVelocity);
+            //_grabbedObj.Unclip(this.name);
             _grabbedObj = null;
         }
     }
