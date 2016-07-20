@@ -54,6 +54,12 @@ public class Pokeball : MonoBehaviour
     private Pokemon _target = null; // Used for auto-guidance of empty Pokéball thrown at wild Pokémons.
     private bool _frozen = false;
     private int _shakeLeft = -1;
+    private int _missedShots = 0;
+
+    private Vector3 _backingOrigin;
+    private Vector3 _backingDestination;
+    private float _backingDuration;
+    private bool _isBacking = false;
 
     void Start()
     {
@@ -82,20 +88,22 @@ public class Pokeball : MonoBehaviour
         {
             _pkmnName.text = "";
         }
+
+        _tr.position = Camera.main.transform.position + Camera.main.transform.forward * 0.4f + Vector3.up * 0.4f;
     }
 
     void Update()
     {
         _verticesToDraw.Clear(); // A virer.
 
-        if (Hub.rightHand.index != SteamVR_TrackedObject.EIndex.None)
-        {
-            SteamVR_Controller.Device device = SteamVR_Controller.Input((int)Hub.rightHand.index);
-            if (device.GetPress(SteamVR_Controller.ButtonMask.ApplicationMenu))
-            {
-                Recall(Hub.rightHand.transform.position);
-            }
-        }
+        //if (_state == PokeballState.Lying && Hub.rightHand.index != SteamVR_TrackedObject.EIndex.None)
+        //{
+        //    SteamVR_Controller.Device device = SteamVR_Controller.Input((int)Hub.rightHand.index);
+        //    if (device.GetPress(SteamVR_Controller.ButtonMask.ApplicationMenu))
+        //    {
+        //        BackToHand(Hub.rightHand.transform.position);
+        //    }
+        //}
 
         // --- Any kind of Pokeball. ---
         if (_state != PokeballState.Held && _grabbableObj.IsGrabbed())
@@ -175,6 +183,11 @@ public class Pokeball : MonoBehaviour
         {
 
         }
+
+        if (_isBacking)
+        {
+            BackToHand();
+        }
     }
 
     public void OnCollisionEnter(Collision collision)
@@ -200,6 +213,19 @@ public class Pokeball : MonoBehaviour
                     Freeze(true);
                     _state = PokeballState.BouncingBack;
                 }
+                /*else if (_content == null)
+                {
+                    _missedShots++;
+
+                    if (_missedShots > 2)
+                    {
+                        _state = PokeballState.Breaking;
+                    }
+                    else
+                    {
+                        StartBacking();
+                    }
+                }*/
                 else
                 {
                     _state = PokeballState.Lying;
@@ -212,18 +238,35 @@ public class Pokeball : MonoBehaviour
         }
     }
 
-    private void Recall(Vector3 pos)
+    private void BackToHand()
     {
+        Vector3 dest = _backingDestination;
+
         // Stopping the current movement.
         _rigid.velocity = Vector3.zero;
         _rigid.angularVelocity = Vector3.zero;
 
         // New movement.
-        var vectorDiff = pos - _tr.position;
-        if (vectorDiff.magnitude > 0.1f)
+        Vector3 vectorDiff = dest - _tr.position;
+
+        _backingDuration += Time.deltaTime;
+        //_tr.position = Vector3.Slerp(_backingOrigin, _backingDestination, _backingDuration);
+        _tr.position += vectorDiff.normalized * Time.deltaTime * Mathf.Clamp(vectorDiff.magnitude * vectorDiff.magnitude, 5f, 20f);
+
+        // We curve the travel of the ball.
+        float ratio = 0f;
+        _tr.position += Vector3.up * ratio;
+
+        // If we went past the destination point, that means the back travelling has ended.
+        Vector3 newVectorDiff = dest - _tr.position;
+        if (Vector3.Dot((_backingDestination - _backingOrigin), newVectorDiff) < 0f)
         {
-            _rigid.velocity = Vector3.Normalize(vectorDiff) * 5.0f;
+            _tr.position = dest;
+            _isBacking = false;
+            _state = PokeballState.Lying;
         }
+
+        //_rigid.velocity = Vector3.Normalize(vectorDiff) * 5.0f;
     }
 
     private bool CheckCapture()
@@ -384,6 +427,9 @@ public class Pokeball : MonoBehaviour
             StopMove();
 
             Instantiate(Resources.Load("Particles/CaptureParticle"), _tr.position, Quaternion.identity);
+
+            //StartBacking();
+            StartCoroutine(StartBackingWithDelayCoroutine(2.75f));
         }
     }
 
@@ -445,9 +491,55 @@ public class Pokeball : MonoBehaviour
             else
             {
                 // The ball goes back to the player's hand.
-                _state = PokeballState.Backing;
+                StartBacking();
 
                 Freeze(false);
+            }
+        }
+    }
+
+    IEnumerator StartBackingWithDelayCoroutine(float delay_, Vector3? dest_ = null)
+    {
+        yield return new WaitForSeconds(delay_);
+
+        StartBacking(dest_);
+    }
+
+    public void StartBacking(Vector3? dest_ = null)
+    {
+        if (_state == PokeballState.Lying
+            || (_content != null && _state == PokeballState.Closing))
+        {
+            if ((_tr.position - Camera.main.transform.position).magnitude > 1f) // We allow the pokeball to back only if it's far from the player. Otherwise it would look bad. Anyway if the pokeball is close by the player, he better go pick it up by himself!
+            {
+                _state = PokeballState.Backing;
+                _backingOrigin = _tr.position;
+
+                if (dest_ != null)
+                {
+                    _backingDestination = (Vector3)dest_;
+                }
+                else
+                {
+                    if (Hub.rightHand != null || Hub.leftHand != null)
+                    {
+                        Transform hand = (Hub.rightHand != null ? Hub.rightHand.transform : Hub.leftHand.transform);
+                        _backingDestination = hand.position;
+                        _backingDestination += (_backingOrigin - hand.position).normalized * 0.3f;
+                        _backingDestination.y = Camera.main.transform.position.y * 0.8f;
+                    }
+                    else // If no hand is detected, we'll use the head as a target instead. Actually this formula may be better than the previous one!
+                    {
+                        Transform hand = Camera.main.transform;
+                        _backingDestination = hand.position;
+                        _backingDestination += (_backingOrigin - hand.position).normalized * 0.3f;
+                        _backingDestination += hand.right * 0.3f;
+                        _backingDestination.y = Camera.main.transform.position.y * 0.8f;
+                    }
+                }
+                
+                _backingDuration = 0f;
+                _isBacking = true;
             }
         }
     }

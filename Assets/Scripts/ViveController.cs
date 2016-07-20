@@ -34,10 +34,22 @@ public class ViveController : MonoBehaviour
             if (device != null)
             {
                 if (device.GetPress(SteamVR_Controller.ButtonMask.Trigger) 
-                    && device.GetPress(SteamVR_Controller.ButtonMask.ApplicationMenu)
+                    && device.GetPressDown(SteamVR_Controller.ButtonMask.ApplicationMenu)
                     && device.GetPress(SteamVR_Controller.ButtonMask.Grip))
                 {
                     SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+                }
+
+                if (device.GetPressDown(SteamVR_Controller.ButtonMask.ApplicationMenu))
+                {
+                    if (Hub.pokeball == null)
+                    {
+                        Debug.LogError("No pokeball assigned in the hub.");
+                    }
+                    else
+                    {
+                        Hub.pokeball.StartBacking(_tr.position);
+                    }
                 }
 
                 if (device.GetPressDown(SteamVR_Controller.ButtonMask.Trigger))

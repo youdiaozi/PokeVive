@@ -5,7 +5,7 @@ using System.Collections.Generic;
 public class Deformation : MonoBehaviour
 {
     public float _maxDeformationRatio = 1f;
-    public float _decaySpeed = 0.5f;
+    public float _decaySpeed = 2f;
     public Animator _animator;
 
     private Transform _tr;
