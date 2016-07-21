@@ -42,6 +42,7 @@ public class Pokemon : MonoBehaviour
     public Deformation _deformation;
     public ParticleSystem _spawningParticle;
     public ParticleSystem _recallingParticle;
+    public SkinnedMeshRenderer _skinnedMesh;
 
     private const float _range = 5f;
     private Vector3 _dest;
@@ -87,6 +88,26 @@ public class Pokemon : MonoBehaviour
 	
 	void Update()
     {
+        if (Input.GetKeyDown(KeyCode.S))
+        {
+            GameObject go = new GameObject();
+            go.name = "SkinnedMesh snapshot " + this.name;
+            go.transform.position = Vector3.one * 10f;
+
+            MeshFilter meshFilter = go.AddComponent<MeshFilter>();
+            MeshRenderer meshRenderer = go.AddComponent<MeshRenderer>();
+            go.AddComponent<MeshReductor>();
+
+            _skinnedMesh.BakeMesh(meshFilter.mesh);
+            meshRenderer.materials = _skinnedMesh.materials;
+
+            Shader shader = Shader.Find("Transparent/Diffuse ZWrite");
+            foreach (Material mat in meshRenderer.materials)
+            {
+                mat.shader = shader;
+            }
+        }
+
         if (_state == PokemonState.Swallowed)
         {
             float timeLeft = 1f - Mathf.Clamp01(Time.time - _captureTime); // Goes from 1 to 0.

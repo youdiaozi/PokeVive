@@ -697,18 +697,20 @@ public class Pokeball : MonoBehaviour
         }
 
         Vector3 headToBall = _tr.position - Camera.main.transform.position;
+        Vector3 headToPokemon = _content.transform.position + Vector3.up * _content.GetRealHeight() / 2f - Camera.main.transform.position;
         Vector3 ballToPokemon = _content.transform.position + Vector3.up * _content.GetRealHeight() / 2f - _tr.position;
         Vector3 ballForward = _tr.forward;
 
         headToBall.Normalize();
+        headToPokemon.Normalize();
         ballToPokemon.Normalize();
         ballForward.Normalize();
 
         if (_isLaserActive)
         {
-            if (headToBall.magnitude > 0.34f * Hub.playerHeight
-                    //&&  Vector3.Dot(headToBall, ballToPokemon) > 0.1f
-                    && Vector3.Dot(ballForward, ballToPokemon) > 0.95f)
+            if (headToBall.magnitude > 0.34f * Hub.playerHeight // This forces the player stretch his arm.
+                    &&  Vector3.Dot(headToBall, headToPokemon) > 0.1f // This force the player to put his arm between his head at the target so he can't put the laser in his own face to see the glitches.
+                    && Vector3.Dot(ballForward, ballToPokemon) > 0.95f) // This force the player to make the Pokéball face the target.
             {
                 return true;
             }
@@ -716,7 +718,7 @@ public class Pokeball : MonoBehaviour
         else
         {
             if (headToBall.magnitude > 0.38f * Hub.playerHeight
-                    //&&  Vector3.Dot(headToBall, ballToPokemon) > 0.2f
+                    &&  Vector3.Dot(headToBall, headToPokemon) > 0.2f
                     && Vector3.Dot(ballForward, ballToPokemon) > 0.975f)
             {
                 return true;

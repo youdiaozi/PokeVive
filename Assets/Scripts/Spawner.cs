@@ -76,6 +76,8 @@ public class Spawner : MonoBehaviour
             SkinnedMeshRenderer skinnedMesh = go.GetComponentInChildren<SkinnedMeshRenderer>();
             if (skinnedMesh != null)
             {
+                pkmn._skinnedMesh = skinnedMesh;
+
                 Transform spawningParticleObj = go.transform.Find("SpawningParticle");
                 if (spawningParticleObj == null)
                 {
