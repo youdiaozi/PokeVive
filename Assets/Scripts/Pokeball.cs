@@ -27,7 +27,10 @@ public enum PokeballState // Only one of those states can be true at a time.
 
     // Relative to a loaded Pokeball.
     Releasing,
-    Backing // Going back to the hand.
+    Backing, // Going back to the hand.
+
+    EmittingLaser, // This is unused, we use the attribute _isLaserActive and the state Held instead.
+    Recalling // Period when the Pokemon is in red energy form and is travelling back into the Pokeball. During this time the Pokeball is useless but can still be held. The red energy will get back into the Pokeball no matter what.
 };
 
 public class Pokeball : MonoBehaviour
@@ -47,7 +50,7 @@ public class Pokeball : MonoBehaviour
     private bool _shrinked = false;
     private bool _isRecalling = false; // True when the Pokéball is trying to call back its Pokémon using its red laser.
     private bool _isPokemonInside = false; // False when the Pokemon contains a Pokemon but the pkmn is out of the pokeball, for a battle for instance.
-    private Pokemon _content = null; // The Pokémon the Pokéball contains.
+    public Pokemon _content = null; // The Pokémon the Pokéball contains.
     private Pokemon _temporaryContent = null; // The Pokémon the Pokéball contains.
     private PokeballState _state = PokeballState.Lying;
 
@@ -277,7 +280,7 @@ public class Pokeball : MonoBehaviour
                     Freeze(true);
                     _state = PokeballState.BouncingBack;
                 }
-                /*else if (_content == null) // A virer ? 
+                else if (_content == null) // A virer ? 
                 {
                     /// Thoughts:
                     /// Making an empty pokeball go back to the trainer after a missed throw allows the player to use it several times until it breaks. 
@@ -288,7 +291,7 @@ public class Pokeball : MonoBehaviour
 
                     _missedShots++;
 
-                    if (_missedShots > 2)
+                    if (_missedShots > 12)
                     {
                         _state = PokeballState.Breaking;
                     }
@@ -296,7 +299,7 @@ public class Pokeball : MonoBehaviour
                     {
                         StartBacking();
                     }
-                }*/
+                }
                 else
                 {
                     _state = PokeballState.Lying;
@@ -412,7 +415,7 @@ public class Pokeball : MonoBehaviour
                     //Vector3 posBis = pos - pkTr.position; // This represents the position of the pokeball relative to the pokemon space (so we don't have to convert every vertex of the pokemon to world space).
                     foreach (Vector3 vertex in mesh.vertices)
                     {
-                        // If a vertex of a pokemon in within the ball radius, then it is captured! Watch out though: a pokemon with wide space between its vertices (like big wings) may be missed by the pokeball.
+                        // If a vertex of a pokemon is within the ball radius, then it is captured! Watch out though: a pokemon with wide space between its vertices (like big wings) may be missed by the pokeball.
                         Vector3 vertexWorldPos = pkTr.position + pkTr.rotation * vertex; // pkTr.TransformPoint(vertex); // 
                         _verticesToDraw.Add(vertexWorldPos); // A virer.
                         Vector3 distance = (pos - vertexWorldPos);
@@ -709,8 +712,8 @@ public class Pokeball : MonoBehaviour
         if (_isLaserActive)
         {
             if (headToBall.magnitude > 0.34f * Hub.playerHeight // This forces the player stretch his arm.
-                    &&  Vector3.Dot(headToBall, headToPokemon) > 0.1f // This force the player to put his arm between his head at the target so he can't put the laser in his own face to see the glitches.
-                    && Vector3.Dot(ballForward, ballToPokemon) > 0.95f) // This force the player to make the Pokéball face the target.
+                    //&&  Vector3.Dot(headToBall, headToPokemon) > 0.1f // This force the player to put his arm between his head at the target so he can't put the laser in his own face to see the glitches.
+                    && Vector3.Dot(ballForward, ballToPokemon) > 0.88f) // This force the player to make the Pokéball face the target.
             {
                 return true;
             }
@@ -718,8 +721,8 @@ public class Pokeball : MonoBehaviour
         else
         {
             if (headToBall.magnitude > 0.38f * Hub.playerHeight
-                    &&  Vector3.Dot(headToBall, headToPokemon) > 0.2f
-                    && Vector3.Dot(ballForward, ballToPokemon) > 0.975f)
+                    //&&  Vector3.Dot(headToBall, headToPokemon) > 0.2f
+                    && Vector3.Dot(ballForward, ballToPokemon) > 0.94f)
             {
                 return true;
             }
@@ -748,12 +751,18 @@ public class Pokeball : MonoBehaviour
         return (_content.transform.GetInstanceID() == tr.GetInstanceID());
     }
 
+    public void ConvertToRedEnergy(bool state_)
+    {
+        _content.TurnIntoRedEnergy(state_);
+    }
+
     public void Recall()
     {
         // This is a temporary version, à virer. A améliorer pour être précis.
 
-        _content.gameObject.SetActive(false);
+        //_content.gameObject.SetActive(false);
         _isPokemonInside = true;
         _content.StoreInPokeball();
+        _laser.Stop();
     }
 }

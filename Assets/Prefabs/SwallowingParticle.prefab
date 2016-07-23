@@ -256,7 +256,7 @@ ParticleSystem:
       maxColor: {r: 1, g: 0, b: 0, a: 0.5019608}
       minMaxState: 0
     startSize:
-      scalar: 0.1
+      scalar: 0.2
       maxCurve:
         serializedVersion: 2
         m_Curve:
@@ -462,7 +462,7 @@ ParticleSystem:
       minMaxState: 0
     randomizeRotationDirection: 0
     gravityModifier: 0
-    maxNumParticles: 90000
+    maxNumParticles: 60000
     size3D: 0
     rotation3D: 0
   ShapeModule:
@@ -490,7 +490,7 @@ ParticleSystem:
     serializedVersion: 2
     m_Type: 0
     rate:
-      scalar: 30000
+      scalar: 60000
       maxCurve:
         serializedVersion: 2
         m_Curve:

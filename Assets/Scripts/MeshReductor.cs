@@ -38,6 +38,7 @@ public class MeshReductor : MonoBehaviour
 
     void StartShrinking()
     {
+        Debug.LogError("START SHRINKING");
         _shrinkRemainingDuration = _shrinkTotalDuration;
     }
 
