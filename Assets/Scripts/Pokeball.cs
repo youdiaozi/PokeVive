@@ -269,7 +269,7 @@ public class Pokeball : MonoBehaviour
 
                     _destination = _tr.position + Camera.main.transform.right + Vector3.up * Mathf.Max(1f, _content.GetRealHeight() * 1.1f);
                     _content.transform.position = _tr.position;
-                    _content.transform.localScale = Vector3.zero;
+                    _content.transform.localScale = Vector3.one / 10000f;
 
                     Vector3 forward = _tr.position - Camera.main.transform.position;
                     forward.y = 0f;
@@ -760,7 +760,7 @@ public class Pokeball : MonoBehaviour
     {
         // This is a temporary version, à virer. A améliorer pour être précis.
 
-        //_content.gameObject.SetActive(false);
+        _content.gameObject.SetActive(false);
         _isPokemonInside = true;
         _content.StoreInPokeball();
         _laser.Stop();

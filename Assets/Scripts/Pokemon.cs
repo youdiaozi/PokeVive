@@ -36,7 +36,8 @@ public enum PokemonState
     StoredInPokeball,
     BeingReleased,
     TurnsIntoRedEnergy, // Period between the moment the Pokémon is touched by the laser of its Pokeball and the moment it starts being swallowed under red energy form.
-    LaserSwallowed // When the Pokemon has already been captured and is getting recalled by its pokeball.
+    LaserSwallowed, // When the Pokemon has already been captured and is getting recalled by its pokeball.
+    Taunting
 };
 public class Pokemon : MonoBehaviour
 {
@@ -100,6 +101,7 @@ public class Pokemon : MonoBehaviour
         go.transform.localScale = new Vector3(1f / _tr.localScale.x, 1f / _tr.localScale.y, 1f / _tr.localScale.z);
 
         _meshCollider = go.AddComponent<MeshCollider>();
+        _meshCollider.sharedMesh = new Mesh();
     }
 	
 	void Update()
@@ -127,7 +129,8 @@ public class Pokemon : MonoBehaviour
             {
                 _state = PokemonState.LaserSwallowed;
                 _homeBall.Recall();
-                _hologram.gameObject.BroadcastMessage("StartShrinking");
+                //_hologram.gameObject.BroadcastMessage("StartShrinking", _tr);
+                _hologram.GetComponent<MeshReductor>().StartShrinking(_homeBall.transform);
             }
         }
         else if (_state == PokemonState.Swallowed)
@@ -171,6 +174,8 @@ public class Pokemon : MonoBehaviour
             {
                 _emissionOriginalColor = Color.white;
                 _emissionTargetColor = Color.black;
+                _state = PokemonState.Idle;
+                _anim.SetTrigger("TauntTrigger");
             }
         }
         else if (_state == PokemonState.Roaming)
@@ -328,8 +333,8 @@ public class Pokemon : MonoBehaviour
         if (_hologram == null)
         {
             GameObject go = new GameObject();
-            go.name = "Hologram" + this.name;
-            go.transform.SetParent(_tr);
+            go.name = "Hologram " + this.name;
+            go.transform.SetParent(Hub.hologramsContainer);
 
             _hologramMeshFilter = go.AddComponent<MeshFilter>();
             _hologram = go.AddComponent<MeshRenderer>();
@@ -357,7 +362,7 @@ public class Pokemon : MonoBehaviour
                 Debug.LogError("Hologram mesh filter not found for " + this.name);
             }
 
-            _hologram.transform.localPosition = Vector3.zero;
+            _hologram.transform.position = _tr.position;
             _hologram.transform.rotation = _tr.rotation;
 
             foreach (Material mat in _hologram.materials)
@@ -384,9 +389,6 @@ public class Pokemon : MonoBehaviour
 
     public void UpdateMeshCollider()
     {
-        Mesh temp = new Mesh();
-        _skinnedMesh.BakeMesh(temp);
-
-        _meshCollider.sharedMesh = temp;
+        _skinnedMesh.BakeMesh(_meshCollider.sharedMesh);
     }
 }

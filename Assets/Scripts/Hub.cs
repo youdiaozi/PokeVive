@@ -15,6 +15,9 @@ public class Hub : MonoBehaviour
     public static Pokeball pokeball { get; private set; }
     public Pokeball _pokeball;
 
+    public static Transform hologramsContainer { get; private set; }
+    public Transform _hologramsContainer;
+
     public static float playerHeight = -1f;
 
     void Awake()
@@ -23,5 +26,6 @@ public class Hub : MonoBehaviour
         leftHand = _leftHand;
         rightHand = _rightHand;
         pokeball = _pokeball;
+        hologramsContainer = _hologramsContainer;
     }
 }

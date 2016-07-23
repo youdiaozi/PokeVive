@@ -91,6 +91,8 @@ public class LaserEmitter : MonoBehaviour
             return;
         }
 
+        Debug.Log("touches my pokemon");
+
         if (!_touchesOwnedPokemon && _pokeball.IsMyPokemon(other.transform.parent))
         {
             _pokeball.ConvertToRedEnergy(true);
@@ -107,7 +109,7 @@ public class LaserEmitter : MonoBehaviour
 
     public void OnTriggerExit(Collider other)
     {
-        if (!_isEmitting)
+        if (!_isEmitting || other.name != "SkinnedMeshCollider")
         {
             return;
         }

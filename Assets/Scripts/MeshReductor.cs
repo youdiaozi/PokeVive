@@ -5,22 +5,27 @@ using System;
 
 public class MeshReductor : MonoBehaviour
 {
-    public float _shrinkTotalDuration = 4f;
-    public float _shrinkingSpeed = 2f;
+    public float _shrinkTotalDuration = 6f;
+    public float _shrinkingSpeed = 0.1f;
 
     private Transform _tr;
-    private float _shrinkRemainingDuration = 0f;
+    private float _shrinkTimeCount = 0f;
     private MeshFilter _filter;
     private float _sphereRadius;
-	
-	void Start()
+    private List<Vector3> _vertices;
+    private bool _isShrinking = false;
+    private Transform _attractor; // In local space.
+    private Bounds _originalBounds;
+    private float _highestVertex = 0f;
+
+    void Start()
 	{
         _tr = this.transform;
         _filter = this.GetComponent<MeshFilter>();
         _filter.mesh.MarkDynamic();
         SetMeshCenter();
 
-        _sphereRadius = _filter.mesh.bounds.extents.magnitude / 2f;
+        _sphereRadius = _filter.mesh.bounds.extents.magnitude;
     }
 	
 	void Update()
@@ -30,16 +35,48 @@ public class MeshReductor : MonoBehaviour
             StartShrinking();
         }
 
-        if (_shrinkRemainingDuration > 0f)
+        if (_isShrinking)
         {
-            ShrinkSphere();
+            _shrinkTimeCount += Time.deltaTime;
+            if (_shrinkTimeCount < _shrinkTotalDuration)
+            {
+                ShrinkSphere();
+            }
+            else
+            {
+                _isShrinking = false;
+            }
         }
+
 	}
 
-    void StartShrinking()
+    public void StartShrinking(Transform attractor)
     {
+        Debug.LogError("Calling start shrinking with transform");
+        _attractor = attractor;
+        StartShrinking();
+    }
+
+    public void StartShrinking()
+    {
+        /// What I want is:
+        /// - a fixed duration
+        /// - an attraction point that can be something else than the center of the mesh
+        /// - a non-uniform attraction force (the closer to the attraction point, the faster it gets attracted).
+        Debug.LogError("Calling start shrinking");
+
         Debug.LogError("START SHRINKING");
-        _shrinkRemainingDuration = _shrinkTotalDuration;
+        _isShrinking = true;
+        _vertices = new List<Vector3>(_filter.mesh.vertices);
+        _originalBounds = _filter.mesh.bounds;
+        _shrinkTimeCount = 0f;
+
+        List<Vector3> vertices = new List<Vector3>(_vertices);
+
+        for (int i = 0; i < _vertices.Count; i++)
+        {
+            _highestVertex = Mathf.Max(_vertices[i].y, _highestVertex);
+        }
     }
 
     void SetMeshCenter()
@@ -70,16 +107,40 @@ public class MeshReductor : MonoBehaviour
 
     void ShrinkSphere()
     {
-        List<Vector3> vertices = new List<Vector3>(_filter.mesh.vertices);
+        List<Vector3> vertices = new List<Vector3>(_vertices);
 
-        for (int i = 0; i < vertices.Count; i++)
+        for (int i = 0; i < _vertices.Count; i++)
         {
-            float length = (vertices[i] - 2f * Vector3.forward).magnitude;
-            float ratio = _sphereRadius / vertices[i].magnitude;
+            Vector3 attractionPoint = Vector3.zero;
+            if (_attractor != null)
+            {
+                attractionPoint = _tr.InverseTransformPoint(_attractor.position);
+            }
+            else
+            {
+                attractionPoint = _tr.InverseTransformPoint(Vector3.up * 2.5f);
+            }
+
+            float length = (_vertices[i] - attractionPoint).magnitude;
+            float distanceRatio = _vertices[i].magnitude / _sphereRadius;
+            float vertexHeightRatio = _vertices[i].y / _highestVertex;
+            //distanceRatio = 1f - distanceRatio;
+            float timeRatio = _shrinkTimeCount / _shrinkTotalDuration;
+            float ratio = distanceRatio + timeRatio;
 
             if (false)
-            { 
-                vertices[i] = Vector3.Lerp(vertices[i], vertices[i] * _sphereRadius / vertices[i].magnitude, _shrinkingSpeed * Time.deltaTime);
+            {
+                vertices[i] = Vector3.Lerp(vertices[i], vertices[i] * 0.5f * _sphereRadius / vertices[i].magnitude, _shrinkingSpeed * Time.deltaTime);
+            }
+            else if (false)
+            {
+                if (length == 0f)
+                {
+                    continue;
+                }
+
+                _vertices[i] = Vector3.Lerp(_vertices[i], attractionPoint, Time.deltaTime * (length * length) / _shrinkingSpeed);
+                vertices[i] = _vertices[i];
             }
             else
             {
@@ -88,7 +149,13 @@ public class MeshReductor : MonoBehaviour
                     continue;
                 }
 
-                vertices[i] = Vector3.Lerp(vertices[i], -2f * Vector3.forward, Time.deltaTime * (length * length) / (_shrinkingSpeed));
+                float acceleration = 2f;
+                float finalRatio = Mathf.Pow(timeRatio, acceleration) + Mathf.Pow(timeRatio, 1f / acceleration) * Mathf.Pow(vertexHeightRatio, acceleration) / 2f;
+
+                finalRatio = Mathf.Clamp01(finalRatio);
+
+                _vertices[i] = Vector3.Lerp(vertices[i], attractionPoint, finalRatio);
+                vertices[i] = _vertices[i];
             }
         }
 
