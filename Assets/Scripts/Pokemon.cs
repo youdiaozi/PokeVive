@@ -111,6 +111,12 @@ public class Pokemon : MonoBehaviour
             CreateHologram();
         }
 
+        if (Input.GetKeyDown(KeyCode.T))
+        {
+            CreateHologram();
+            _state = PokemonState.TurnsIntoRedEnergy;
+        }
+
         if (_state == PokemonState.TurnsIntoRedEnergy)
         {
             _redEnergyConversionTime += Time.deltaTime;
@@ -122,7 +128,16 @@ public class Pokemon : MonoBehaviour
                 foreach (Material mat in _hologram.materials)
                 {
                     float inversedPercentage = 1f - percentage;
-                    mat.color = new Color(1f, inversedPercentage, inversedPercentage, 1f);
+                    mat.color = new Color(1f, inversedPercentage, inversedPercentage, 0.5f + 0.5f * inversedPercentage);
+                    if (mat.HasProperty("_EmissionColor"))
+                    {
+                        mat.SetColor("_EmissionColor", new Color(percentage, 0f, 0f));
+                    }
+
+                    if (mat.HasProperty("_Glossiness"))
+                    {
+                        mat.SetFloat("_Glossiness", 0f);
+                    }
                 }
             }
             else
@@ -307,7 +322,7 @@ public class Pokemon : MonoBehaviour
                 _skinnedMesh.enabled = false;
             }
 
-            _recallingParticle.Play();
+            //_recallingParticle.Play();
         }
         else
         {
@@ -324,7 +339,7 @@ public class Pokemon : MonoBehaviour
                 _skinnedMesh.enabled = true;
             }
 
-            _recallingParticle.Stop();
+            //_recallingParticle.Stop();
         }
     }
 
@@ -342,11 +357,23 @@ public class Pokemon : MonoBehaviour
 
             _hologram.materials = (Material[])_skinnedMesh.materials.Clone();
 
-            Shader shader = Shader.Find("Transparent/Diffuse ZWrite");
+            foreach (Material mat in _hologram.materials)
+            {
+                mat.SetFloat("_Mode", 2);
+                mat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+                mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+                mat.SetInt("_ZWrite", 0);
+                mat.DisableKeyword("_ALPHATEST_ON");
+                mat.EnableKeyword("_ALPHABLEND_ON");
+                mat.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+                mat.renderQueue = 3000;
+            }
+
+            /*Shader shader = Shader.Find("Transparent/Diffuse ZWrite");
             foreach (Material mat in _hologram.materials)
             {
                 mat.shader = shader;
-            }
+            }*/
         }
 
         if (_hologram != null)

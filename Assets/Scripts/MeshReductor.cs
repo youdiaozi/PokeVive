@@ -12,6 +12,7 @@ public class MeshReductor : MonoBehaviour
     private float _shrinkTimeCount = 0f;
     private MeshFilter _filter;
     private float _sphereRadius;
+    private List<Vector3> _originalVertices;
     private List<Vector3> _vertices;
     private bool _isShrinking = false;
     private Transform _attractor; // In local space.
@@ -52,7 +53,6 @@ public class MeshReductor : MonoBehaviour
 
     public void StartShrinking(Transform attractor)
     {
-        Debug.LogError("Calling start shrinking with transform");
         _attractor = attractor;
         StartShrinking();
     }
@@ -63,11 +63,10 @@ public class MeshReductor : MonoBehaviour
         /// - a fixed duration
         /// - an attraction point that can be something else than the center of the mesh
         /// - a non-uniform attraction force (the closer to the attraction point, the faster it gets attracted).
-        Debug.LogError("Calling start shrinking");
 
-        Debug.LogError("START SHRINKING");
         _isShrinking = true;
         _vertices = new List<Vector3>(_filter.mesh.vertices);
+        _originalVertices = new List<Vector3>(_filter.mesh.vertices);
         _originalBounds = _filter.mesh.bounds;
         _shrinkTimeCount = 0f;
 
@@ -108,6 +107,7 @@ public class MeshReductor : MonoBehaviour
     void ShrinkSphere()
     {
         List<Vector3> vertices = new List<Vector3>(_vertices);
+        List<Vector3> normals = new List<Vector3>(_filter.mesh.normals);
 
         for (int i = 0; i < _vertices.Count; i++)
         {
@@ -122,6 +122,7 @@ public class MeshReductor : MonoBehaviour
             }
 
             float length = (_vertices[i] - attractionPoint).magnitude;
+            float originToDestRatio = length / (attractionPoint - _originalVertices[i]).magnitude;
             float distanceRatio = _vertices[i].magnitude / _sphereRadius;
             float vertexHeightRatio = _vertices[i].y / _highestVertex;
             //distanceRatio = 1f - distanceRatio;
@@ -142,20 +143,31 @@ public class MeshReductor : MonoBehaviour
                 _vertices[i] = Vector3.Lerp(_vertices[i], attractionPoint, Time.deltaTime * (length * length) / _shrinkingSpeed);
                 vertices[i] = _vertices[i];
             }
-            else
+            else if (true)
             {
                 if (length == 0f)
                 {
                     continue;
                 }
 
+                float range = 0.4f;
                 float acceleration = 2f;
                 float finalRatio = Mathf.Pow(timeRatio, acceleration) + Mathf.Pow(timeRatio, 1f / acceleration) * Mathf.Pow(vertexHeightRatio, acceleration) / 2f;
 
                 finalRatio = Mathf.Clamp01(finalRatio);
 
+                range *= Mathf.Clamp01(originToDestRatio);
+                vertices[i] += normals[i] * UnityEngine.Random.Range(-_sphereRadius * range, _sphereRadius * range);
                 _vertices[i] = Vector3.Lerp(vertices[i], attractionPoint, finalRatio);
                 vertices[i] = _vertices[i];
+            }
+            else
+            {
+                // Random noise. Looks great but makes holes. Try using a shader that displays back faces.
+
+                float range = 0.4f;
+                //vertices[i] += UnityEngine.Random.onUnitSphere * UnityEngine.Random.Range(-_sphereRadius * range, _sphereRadius * range);
+                vertices[i] += normals[i] * UnityEngine.Random.Range(-_sphereRadius * range, _sphereRadius * range);
             }
         }
 

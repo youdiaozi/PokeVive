@@ -39,12 +39,14 @@ public class Pokeball : MonoBehaviour
     public GrabbableObj _grabbableObj;
     public TextMeshPro _pkmnName;
     public LaserEmitter _laser;
+    public AudioClip[] _audioClips;
 
     private const float _pokeballCatchRadius = 0.1f; // The real pokeball radius is 0.05.
 
     private Transform _tr;
     private Rigidbody _rigid;
     private Animator _animator;
+    private AudioSource _audioSource;
     private List<Vector3> _verticesToDraw = new List<Vector3>(); // A virer.
 
     private bool _shrinked = false;
@@ -73,6 +75,7 @@ public class Pokeball : MonoBehaviour
         _tr = this.transform;
         _rigid = GetComponent<Rigidbody>();
         _animator = GetComponent<Animator>();
+        _audioSource = GetComponent<AudioSource>();
 
         if (_editorTest)
         {
@@ -210,20 +213,27 @@ public class Pokeball : MonoBehaviour
             }
             else
             {
+                _state = PokeballState.Opening;
+                Freeze(true);
+
+                _animator.SetBool("Open", true);
+
                 if (_content == null)
                 {
-                    _state = PokeballState.Opening;
-                    Freeze(true);
-
-                    _animator.SetBool("Open", true);
+                    // The next state is Swallowing.
+                    PlaySound("CatchSwallow");
                 }
-                else if (_isPokemonInside) // Double.
+                else if (_isPokemonInside)
                 {
-                    _state = PokeballState.Opening;
-                    Freeze(true);
-
-                    _animator.SetBool("Open", true);
+                    PlaySound("ReleasePokemon");
                 }
+            }
+        }
+        else if (_state == PokeballState.Falling)
+        {
+            if (_rigid.velocity.magnitude < 0.05f && _tr.position.y < 0.05f)
+            {
+                _state = PokeballState.Shaking;
             }
         }
 
@@ -241,7 +251,8 @@ public class Pokeball : MonoBehaviour
                 {
                     _shakeLeft = Random.Range(4, 6);
                     //StopMove();
-                    Invoke("ShakeOnce", 1f);
+                    Invoke("ShakeOnce", 0.75f);
+                    _animator.SetBool("RedLightOn", true);
                 }
             }
         }
@@ -259,11 +270,18 @@ public class Pokeball : MonoBehaviour
 
     public void OnCollisionEnter(Collision collision)
     {
+        bool soundPlayed = false;
+
         if (_state == PokeballState.Thrown)
         {
             if (!_editorTest)
             {
-                if (_content != null && _isPokemonInside && collision.contacts[0].point.y < 0.05f)
+                Vector3 camPos = Camera.main.transform.position;
+                Vector2 playerPos = new Vector2(camPos.x, camPos.z);
+                Vector2 ballPos = new Vector2(_tr.position.x, _tr.position.z);
+
+                float horizontalDistanceToPlayer = (playerPos - ballPos).magnitude;
+                if (_content != null && _isPokemonInside && horizontalDistanceToPlayer > 1f && collision.contacts[0].point.y < 0.05f)
                 {
                     _content.gameObject.SetActive(true);
 
@@ -279,6 +297,9 @@ public class Pokeball : MonoBehaviour
 
                     Freeze(true);
                     _state = PokeballState.BouncingBack;
+
+                    PlaySound("PokemonImpact");
+                    soundPlayed = true;
                 }
                 else if (_content == null) // A virer ? 
                 {
@@ -306,9 +327,19 @@ public class Pokeball : MonoBehaviour
                 }
             }
         }
-        else if (_state == PokeballState.Falling)
+
+        if (!soundPlayed)
         {
-            _state = PokeballState.Shaking;
+            float mag = collision.impulse.magnitude;
+            if (mag > 0.05f)
+            {
+                float volume = Mathf.Clamp01(mag);
+                volume = Mathf.Pow(volume, 0.5f);
+                //volume *= volume;
+                volume /= 2f;
+
+                PlaySound("GroundImpact", volume);
+            }
         }
     }
 
@@ -424,6 +455,7 @@ public class Pokeball : MonoBehaviour
                             // Pokémon touched! 
 
                             Debug.Log(pk.name + " as been touched!");
+                            PlaySound("PokemonImpact");
 
                             Pokemon pkmn = pkTr.GetComponent<Pokemon>();
                             _destination = pkmn.Touched(this);
@@ -508,15 +540,20 @@ public class Pokeball : MonoBehaviour
             Freeze(false);
             StopMove();
             _rigid.AddForce(force, ForceMode.VelocityChange);
+            PlaySound("Shake");
 
-            StartCoroutine("BalanceShakeForce", -force);
+            
             float delay = Random.Range(1.3f, 2f) + (_shakeLeft == 1 ? 1.2f : 0f);
 
             //if (_editorTest)
             {
-                delay /= 5f;
+                delay *= 0.75f;
             }
 
+            //object[] parms = new object[2] { -force, delay / 2f };
+            object[] parms = new object[2] { -force, 0.25f };
+
+            StartCoroutine("BalanceShakeForce", parms);
             Invoke("ShakeOnce", delay);
         }
         else
@@ -534,6 +571,8 @@ public class Pokeball : MonoBehaviour
 
             _temporaryContent = null;
             StopMove();
+            _animator.SetBool("RedLightOn", false);
+            PlaySound("Caught");
 
             Instantiate(Resources.Load("Particles/CaptureParticle"), _tr.position, Quaternion.identity);
 
@@ -542,9 +581,12 @@ public class Pokeball : MonoBehaviour
         }
     }
 
-    IEnumerator BalanceShakeForce(Vector3 force_)
+    IEnumerator BalanceShakeForce(object[] parms)
     {
-        yield return new WaitForSeconds(0.3f);
+        Vector3 force_ = (Vector3)parms[0];
+        float delay_ = (float)parms[1];
+
+        yield return new WaitForSeconds(delay_);
 
         if (_state != PokeballState.Shaking)
         {
@@ -553,6 +595,7 @@ public class Pokeball : MonoBehaviour
 
         StopMove();
         _rigid.AddForce(force_, ForceMode.VelocityChange);
+        PlaySound("Shake");
 
         yield return new WaitForSeconds(0.3f);
         //StopMove();
@@ -656,7 +699,8 @@ public class Pokeball : MonoBehaviour
                     {
                         Transform hand = Camera.main.transform;
                         _backingDestination = hand.position;
-                        _backingDestination += (_backingOrigin - hand.position).normalized * 0.3f;
+                        //_backingDestination += (_backingOrigin - hand.position).normalized * 0.3f;
+                        _backingDestination += hand.forward * 0.45f;
                         _backingDestination += hand.right * 0.3f;
                         _backingDestination.y = Camera.main.transform.position.y * 0.8f;
                     }
@@ -689,6 +733,7 @@ public class Pokeball : MonoBehaviour
     private void OnGrabbed()
     {
         _state = PokeballState.Held;
+        PlaySound("PickedUp");
         _isBacking = false;
     }
 
@@ -754,6 +799,15 @@ public class Pokeball : MonoBehaviour
     public void ConvertToRedEnergy(bool state_)
     {
         _content.TurnIntoRedEnergy(state_);
+
+        if (state_ == true)
+        {
+            PlaySound("ReturnSwallow");
+        }
+        else
+        {
+            StopSound("ReturnSwallow");
+        }
     }
 
     public void Recall()
@@ -764,5 +818,90 @@ public class Pokeball : MonoBehaviour
         _isPokemonInside = true;
         _content.StoreInPokeball();
         _laser.Stop();
+        _isRecalling = true;
+    }
+
+    private void PlaySound(string track, float volume = 1f)
+    {
+        if (track == "PickedUp")
+        {
+            _audioSource.PlayOneShot(_audioClips[0], volume);
+        }
+        else if (track == "Shrink")
+        {
+            _audioSource.PlayOneShot(_audioClips[1], volume);
+        }
+        else if (track == "Grow")
+        {
+            _audioSource.PlayOneShot(_audioClips[2], volume);
+        }
+        else if (track == "CatchSwallow")
+        {
+            _audioSource.PlayOneShot(_audioClips[3], volume);
+        }
+        else if (track == "Shake")
+        {
+            _audioSource.PlayOneShot(_audioClips[4], volume);
+        }
+        else if (track == "Caught")
+        {
+            _audioSource.PlayOneShot(_audioClips[5], volume);
+        }
+        else if (track == "ReleasePokemon")
+        {
+            _audioSource.PlayOneShot(_audioClips[6], volume);
+        }
+        else if (track == "ReturnSwallow")
+        {
+            _audioSource.PlayOneShot(_audioClips[7], volume);
+        }
+        else if (track == "PokemonImpact")
+        {
+            _audioSource.PlayOneShot(_audioClips[8], volume);
+        }
+        else if (track == "GroundImpact")
+        {
+            _audioSource.PlayOneShot(_audioClips[9], volume);
+        }
+    }
+
+    private void StopSound(string track)
+    {
+        if (track == "Shrink")
+        {
+            if (_audioSource.clip == _audioClips[1])
+            {
+                _audioSource.Stop();
+            }
+        }
+        else if (track == "Grow")
+        {
+            if (_audioSource.clip == _audioClips[2])
+            {
+                _audioSource.Stop();
+            }
+        }
+        else if (track == "CatchSwallow")
+        {
+            if (_audioSource.clip == _audioClips[3])
+            {
+                _audioSource.Stop();
+            }
+        }
+        else if (track == "ReleasePokemon")
+        {
+            if (_audioSource.clip == _audioClips[6])
+            {
+                _audioSource.Stop();
+            }
+        }
+        else if (track == "ReturnSwallow")
+        {
+            if (_audioSource.clip == _audioClips[7])
+            {
+                _audioSource.Stop();
+            }
+        }
+
     }
 }

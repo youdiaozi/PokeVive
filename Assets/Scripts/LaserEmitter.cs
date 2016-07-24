@@ -31,6 +31,16 @@ public class LaserEmitter : MonoBehaviour
         }
 
         _length += _speed * Time.deltaTime;
+
+        Ray ray = new Ray(_pokeball.transform.position, _tr.up);
+        RaycastHit hitInfo = new RaycastHit();
+        if (Physics.Raycast(ray, out hitInfo, _length))
+        {
+            Debug.Log("Hitting a collider!");
+            _length = (hitInfo.point - ray.origin).magnitude;
+            _length = 0.5f;
+        }
+
         _tr.localPosition = new Vector3(0, 0, _length);
 
         // If the laser is active, we make it grow and also check if it's touching the Pokémon.
@@ -80,6 +90,7 @@ public class LaserEmitter : MonoBehaviour
         _isEmitting = false;
 
         _rend.enabled = false;
+        _touchesOwnedPokemon = false;
         //_tr.SetParent(null);
         //_rigid.AddRelativeForce(new Vector3(0, _speed, 0), ForceMode.Acceleration);
     }
@@ -90,8 +101,6 @@ public class LaserEmitter : MonoBehaviour
         {
             return;
         }
-
-        Debug.Log("touches my pokemon");
 
         if (!_touchesOwnedPokemon && _pokeball.IsMyPokemon(other.transform.parent))
         {

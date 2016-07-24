@@ -92,6 +92,13 @@ public class Spawner : MonoBehaviour
             {
                 pkmn._skinnedMesh = skinnedMesh;
 
+                //Shader shader = Shader.Find("Transparent/Diffuse ZWrite");
+                Shader shader = Shader.Find("Standard");
+                foreach (Material mat in pkmn._skinnedMesh.materials)
+                {
+                    mat.shader = shader;
+                }
+
                 Transform spawningParticleObj = go.transform.Find("SpawningParticle");
                 if (spawningParticleObj == null)
                 {
