@@ -31,6 +31,7 @@ public enum PokemonState
     ERROR,
     Idle,
     Roaming,
+    Touched,
     Swallowed,
     TryingToEscapeBall,
     StoredInPokeball,
@@ -65,6 +66,8 @@ public class Pokemon : MonoBehaviour
     private float _shrinkingRatio; // Shrinking ratio to fit inside a Pokeball.
     private Vector3 _pathToBall;
     private float _captureTime = -1f;
+    private float _defaultAgentSpeed;
+    private float _defaultAgentAngularSpeed;
 
     private Color _emissionTargetColor = Color.black;
     private Color _emissionOriginalColor = Color.black;
@@ -76,6 +79,7 @@ public class Pokemon : MonoBehaviour
     private float _redEnergyConversionTime = 0f;
     private float _redEnergyConversionTotalTime = 1f;
     private MeshCollider _meshCollider;
+    private MeshReductor _meshReductor;
 
     void Start()
     {
@@ -92,6 +96,8 @@ public class Pokemon : MonoBehaviour
             mat.EnableKeyword("_EMISSION");
         }
 
+        _defaultAgentSpeed = _nav.speed;
+        _defaultAgentAngularSpeed = _nav.angularSpeed;
         _baseBoundingBox = _rend.bounds.size;
 
         GameObject go = new GameObject();
@@ -117,7 +123,18 @@ public class Pokemon : MonoBehaviour
             _state = PokemonState.TurnsIntoRedEnergy;
         }
 
-        if (_state == PokemonState.TurnsIntoRedEnergy)
+        if (_state == PokemonState.Touched)
+        {
+            float decayRatio = Mathf.Clamp01(100f * Time.deltaTime);
+
+            _anim.speed *= decayRatio;
+            _nav.speed *= decayRatio;
+            _nav.angularSpeed *= decayRatio;
+            _nav.velocity *= decayRatio;
+
+            //Debug.LogError("new anim speed = " + _anim.speed);
+        }
+        else if (_state == PokemonState.TurnsIntoRedEnergy)
         {
             _redEnergyConversionTime += Time.deltaTime;
 
@@ -142,13 +159,20 @@ public class Pokemon : MonoBehaviour
             }
             else
             {
-                _state = PokemonState.LaserSwallowed;
-                _homeBall.Recall();
-                //_hologram.gameObject.BroadcastMessage("StartShrinking", _tr);
-                _hologram.GetComponent<MeshReductor>().StartShrinking(_homeBall.transform);
+                if (_isBeingCaptured)
+                {
+                    Swallow(_homeBall);
+                }
+                else
+                {
+                    _state = PokemonState.LaserSwallowed;
+                    _homeBall.Recall();
+                    //_hologram.gameObject.BroadcastMessage("StartShrinking", _tr);
+                    _meshReductor.StartShrinking(_homeBall.transform);
+                }
             }
         }
-        else if (_state == PokemonState.Swallowed)
+        /*else if (_state == PokemonState.Swallowed)
         {
             float timeLeft = 1f - Mathf.Clamp01(Time.time - _captureTime); // Goes from 1 to 0.
 
@@ -172,7 +196,7 @@ public class Pokemon : MonoBehaviour
             }
 
             return;
-        }
+        }*/
         else if (_state == PokemonState.BeingReleased)
         {
             if (_tr.localScale != _baseLocalScale)
@@ -189,13 +213,21 @@ public class Pokemon : MonoBehaviour
             {
                 _emissionOriginalColor = Color.white;
                 _emissionTargetColor = Color.black;
-                _state = PokemonState.Idle;
-                _anim.SetTrigger("TauntTrigger");
+
+                if (_isCaptured)
+                {
+                    _state = PokemonState.Idle;
+                    _anim.SetTrigger("TauntTrigger");
+                }
+                else
+                {
+                    _state = PokemonState.Roaming;
+                }
             }
         }
         else if (_state == PokemonState.Roaming)
         {
-            _anim.SetFloat("Speed", _nav.velocity.magnitude);
+            _anim.SetFloat("MoveSpeed", _nav.velocity.magnitude);
             _waitTime -= Time.deltaTime;
 
             if (_nav.remainingDistance < 0.1f && _waitTime <= 0f)
@@ -233,6 +265,15 @@ public class Pokemon : MonoBehaviour
     {
         // Returns the position the Pokeball should bounce back at.
 
+        /// The next steps are the following:
+        /// - the Pokémon brakes until it's frozen (can be frozen mid-air).
+        /// - meanwhile, the Pokéball bounces back and turns to face the Pokémon.
+        /// - once the pokeball is in position, the pokeball opens and the pokemon turns into red energy.
+        /// - I'd like to keep the white flash light at the moment.
+        /// - the pokeball closes once all the energy is inside.
+        /// - then we proceed normally with the fall followed shaking.
+        /// - note: I'll need to manage the breakout of the pokeball once I'll be able to pick some more from my back.
+
         Debug.Log("Touched method called.");
 
         if (_homeBall != null)
@@ -241,7 +282,12 @@ public class Pokemon : MonoBehaviour
             return Vector3.zero;
         }
 
+        _state = PokemonState.Touched;
         _homeBall = ball;
+        _isBeingCaptured = true;
+
+        //_emissionOriginalColor = _rend.material.GetColor("_EmissionColor");
+        //_emissionTargetColor = Color.white;
 
         // Calculating the bounce destination. A ajuster.
         Vector3 destination = ball.transform.position - _tr.position;
@@ -251,15 +297,14 @@ public class Pokemon : MonoBehaviour
         Bounds bounds = _rend.bounds;
         destination.y = ball.transform.position.y + Mathf.Max(0.6f, bounds.extents.y); // Rajouter une telle hauteur va faire traverser les Pokémons volants au dessus du joueur à la Pokéball.
 
-        _emissionOriginalColor = _rend.material.GetColor("_EmissionColor");
-        _emissionTargetColor = Color.white;
-
         return destination;       
     }
 
     public void Swallow(Pokeball ball)
     {
         _state = PokemonState.Swallowed;
+
+        _hologram.GetComponent<MeshReductor>().StartShrinking(_homeBall.transform);
 
         _captureTime = Time.time;
         _anim.speed = 0f; // Freezes the Pokemon.
@@ -277,8 +322,16 @@ public class Pokemon : MonoBehaviour
     {
         _state = PokemonState.BeingReleased;
 
+        if (!this.gameObject.activeSelf)
+        {
+            this.gameObject.SetActive(true);
+        }
+
+        _tr.localScale = Vector3.one / 100000f;
         _anim.speed = 1f;
         _nav.enabled = true;
+        _nav.speed = _defaultAgentSpeed;
+        _nav.angularSpeed = _defaultAgentAngularSpeed;
 
         _skinnedMesh.enabled = true;
         _rend.material.SetColor("_EmissionColor", Color.white);
@@ -303,6 +356,11 @@ public class Pokemon : MonoBehaviour
             }
 
             //_spawningParticle.Play();
+        }
+
+        if (!_isCaptured)
+        {
+            _homeBall = null;
         }
     }
 
@@ -353,7 +411,8 @@ public class Pokemon : MonoBehaviour
 
             _hologramMeshFilter = go.AddComponent<MeshFilter>();
             _hologram = go.AddComponent<MeshRenderer>();
-            go.AddComponent<MeshReductor>();
+            _meshReductor = go.AddComponent<MeshReductor>();
+            _meshReductor.ReductionDone += OnReductionDone;
 
             _hologram.materials = (Material[])_skinnedMesh.materials.Clone();
 
@@ -403,6 +462,18 @@ public class Pokemon : MonoBehaviour
         }
     }
 
+    private void OnReductionDone()
+    {
+        if (_isBeingCaptured)
+        {
+            _state = PokemonState.TryingToEscapeBall; // This state is useless as all the pokemon actions are dictated by the Pokéball. The only purpose of this state is to make the Pokémon wait.
+
+            _hologram.enabled = false;
+            _homeBall.EndSwallow();
+            this.gameObject.SetActive(false);
+        }
+    }
+
     public void StoreInPokeball()
     {
         _state = PokemonState.StoredInPokeball;
@@ -417,5 +488,25 @@ public class Pokemon : MonoBehaviour
     public void UpdateMeshCollider()
     {
         _skinnedMesh.BakeMesh(_meshCollider.sharedMesh);
+    }
+
+    public Vector3 GetBaseBoundingBoxSize()
+    {
+        return _baseBoundingBox;
+    }
+
+    public void SetCaptureResult(bool isCaptured_)
+    {
+        _isCaptured = isCaptured_;
+        _isBeingCaptured = false;
+
+        if (isCaptured_)
+        {
+            
+        }
+        else
+        {
+            ReleaseFromPokeball();
+        }
     }
 }

@@ -32,13 +32,12 @@ public class LaserEmitter : MonoBehaviour
 
         _length += _speed * Time.deltaTime;
 
+        // Stopping the laser on colliders.
         Ray ray = new Ray(_pokeball.transform.position, _tr.up);
         RaycastHit hitInfo = new RaycastHit();
-        if (Physics.Raycast(ray, out hitInfo, _length))
+        if (Physics.Raycast(ray, out hitInfo, 2f * _length))
         {
-            Debug.Log("Hitting a collider!");
-            _length = (hitInfo.point - ray.origin).magnitude;
-            _length = 0.5f;
+            _length = (hitInfo.point - ray.origin).magnitude / 2f;
         }
 
         _tr.localPosition = new Vector3(0, 0, _length);

@@ -138,7 +138,7 @@ public class Pokeball : MonoBehaviour
         {
             // When the Pokeball is held, it has to face the right direction so the player can see the button.
 
-            if (ShouldLaserTrigger())
+            if (ShouldTriggerLaser())
             {
                 // If the player extends his arm towards its battling Pokemon, while at pointing the front of the pokeball at it, and while looking at it, it triggers the recalling laser of the Pokeball.
 
@@ -149,7 +149,7 @@ public class Pokeball : MonoBehaviour
 
         if (_isLaserActive)
         {
-            if (!ShouldLaserTrigger())
+            if (!ShouldTriggerLaser())
             {
                 _isLaserActive = false;
                 DisactivateRecallingLaser(); 
@@ -220,8 +220,7 @@ public class Pokeball : MonoBehaviour
 
                 if (_content == null)
                 {
-                    // The next state is Swallowing.
-                    PlaySound("CatchSwallow");
+                    
                 }
                 else if (_isPokemonInside)
                 {
@@ -252,7 +251,6 @@ public class Pokeball : MonoBehaviour
                     _shakeLeft = Random.Range(4, 6);
                     //StopMove();
                     Invoke("ShakeOnce", 0.75f);
-                    _animator.SetBool("RedLightOn", true);
                 }
             }
         }
@@ -283,17 +281,24 @@ public class Pokeball : MonoBehaviour
                 float horizontalDistanceToPlayer = (playerPos - ballPos).magnitude;
                 if (_content != null && _isPokemonInside && horizontalDistanceToPlayer > 1f && collision.contacts[0].point.y < 0.05f)
                 {
-                    _content.gameObject.SetActive(true);
+                    //_content.gameObject.SetActive(true);
 
                     _destination = _tr.position + Camera.main.transform.right + Vector3.up * Mathf.Max(1f, _content.GetRealHeight() * 1.1f);
+
                     _content.transform.position = _tr.position;
-                    _content.transform.localScale = Vector3.one / 10000f;
 
                     Vector3 forward = _tr.position - Camera.main.transform.position;
                     forward.y = 0f;
                     forward.Normalize();
 
-                    _content.transform.LookAt(_tr.position + forward, Vector3.up);
+                    // We want to keep at least 50cm between the trainer and the Pokémon he is currently releasing from the this pokeball.
+                    float pkmnDepth = _content.GetBaseBoundingBoxSize().z / 2f;
+                    if (horizontalDistanceToPlayer < 0.5f + pkmnDepth)
+                    {
+                        _content.transform.position += forward * (pkmnDepth + 0.5f - horizontalDistanceToPlayer);
+                    }
+
+                    _content.transform.LookAt(_content.transform.position + forward, Vector3.up);
 
                     Freeze(true);
                     _state = PokeballState.BouncingBack;
@@ -534,27 +539,40 @@ public class Pokeball : MonoBehaviour
         {
             // For now Pokéballs are Masterballs.
 
-            Vector3 force = Random.onUnitSphere * 0.3f;
-            force.y = 0;
+            float escapeChance = 0.3f; // We should get this value from the Pokemon stats.
 
-            Freeze(false);
-            StopMove();
-            _rigid.AddForce(force, ForceMode.VelocityChange);
-            PlaySound("Shake");
-
-            
-            float delay = Random.Range(1.3f, 2f) + (_shakeLeft == 1 ? 1.2f : 0f);
-
-            //if (_editorTest)
+            if (Random.value < escapeChance)
             {
-                delay *= 0.75f;
+                _temporaryContent.transform.position = _tr.position;
+                _temporaryContent.SetCaptureResult(false);
+
+                // I stopped working here. From here, we need to release the Pokemon before breaking the pokeball (explosion).
+                Destroy(this.gameObject);
             }
+            else
+            {
+                Vector3 force = Random.onUnitSphere * 0.3f;
+                force.y = 0;
 
-            //object[] parms = new object[2] { -force, delay / 2f };
-            object[] parms = new object[2] { -force, 0.25f };
+                Freeze(false);
+                StopMove();
+                _rigid.AddForce(force, ForceMode.VelocityChange);
+                PlaySound("Shake");
 
-            StartCoroutine("BalanceShakeForce", parms);
-            Invoke("ShakeOnce", delay);
+
+                float delay = Random.Range(1.3f, 2f) + (_shakeLeft == 1 ? 1.2f : 0f);
+
+                //if (_editorTest)
+                {
+                    delay *= 0.75f;
+                }
+
+                //object[] parms = new object[2] { -force, delay / 2f };
+                object[] parms = new object[2] { -force, 0.25f };
+
+                StartCoroutine("BalanceShakeForce", parms);
+                Invoke("ShakeOnce", delay);
+            }
         }
         else
         {
@@ -567,6 +585,7 @@ public class Pokeball : MonoBehaviour
 
             _content = _temporaryContent;
             _content.StoreInPokeball();
+            _content.SetCaptureResult(true);
             _pkmnName.text = _content._name;
 
             _temporaryContent = null;
@@ -612,11 +631,11 @@ public class Pokeball : MonoBehaviour
         {
             if (_content == null)
             {
-                // Is called by the animation when the pokeball is fully opened.
-                _state = PokeballState.Swallowing;
+                _state = PokeballState.Swallowing; // The next state will be called by the animation once it's done.
 
                 // Do calls on the Pokemon.
-                _temporaryContent.Swallow(this);
+                //_temporaryContent.Swallow(this);
+                ConvertToRedEnergy(true);
             }
             else if (_isPokemonInside)
             {
@@ -648,6 +667,7 @@ public class Pokeball : MonoBehaviour
             if (_content == null)
             {
                 _state = PokeballState.Falling;
+                _animator.SetBool("RedLightOn", true);
 
                 Freeze(false);
             }
@@ -737,9 +757,9 @@ public class Pokeball : MonoBehaviour
         _isBacking = false;
     }
 
-    private bool ShouldLaserTrigger()
+    private bool ShouldTriggerLaser()
     {
-        if (_state != PokeballState.Held)
+        if (_state != PokeballState.Held || _content == null)
         {
             return false;
         }
@@ -758,7 +778,7 @@ public class Pokeball : MonoBehaviour
         {
             if (headToBall.magnitude > 0.34f * Hub.playerHeight // This forces the player stretch his arm.
                     //&&  Vector3.Dot(headToBall, headToPokemon) > 0.1f // This force the player to put his arm between his head at the target so he can't put the laser in his own face to see the glitches.
-                    && Vector3.Dot(ballForward, ballToPokemon) > 0.88f) // This force the player to make the Pokéball face the target.
+                    && Vector3.Dot(ballForward, ballToPokemon) > 0.65f) // This force the player to make the Pokéball face the target.
             {
                 return true;
             }
@@ -767,7 +787,7 @@ public class Pokeball : MonoBehaviour
         {
             if (headToBall.magnitude > 0.38f * Hub.playerHeight
                     //&&  Vector3.Dot(headToBall, headToPokemon) > 0.2f
-                    && Vector3.Dot(ballForward, ballToPokemon) > 0.94f)
+                    && Vector3.Dot(ballForward, ballToPokemon) > 0.8f)
             {
                 return true;
             }
@@ -798,15 +818,23 @@ public class Pokeball : MonoBehaviour
 
     public void ConvertToRedEnergy(bool state_)
     {
-        _content.TurnIntoRedEnergy(state_);
-
-        if (state_ == true)
+        if (_content == null)
         {
-            PlaySound("ReturnSwallow");
+            _temporaryContent.TurnIntoRedEnergy(state_);
+            PlaySound("CatchSwallow");
         }
         else
         {
-            StopSound("ReturnSwallow");
+            _content.TurnIntoRedEnergy(state_);
+
+            if (state_ == true)
+            {
+                PlaySound("ReturnSwallow");
+            }
+            else
+            {
+                StopSound("ReturnSwallow");
+            }
         }
     }
 

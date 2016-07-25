@@ -3,10 +3,13 @@ using System.Collections;
 using System.Collections.Generic;
 using System;
 
+public delegate void ReductionEventHandler();
+
 public class MeshReductor : MonoBehaviour
 {
     public float _shrinkTotalDuration = 6f;
     public float _shrinkingSpeed = 0.1f;
+    public event ReductionEventHandler ReductionDone;
 
     private Transform _tr;
     private float _shrinkTimeCount = 0f;
@@ -24,7 +27,7 @@ public class MeshReductor : MonoBehaviour
         _tr = this.transform;
         _filter = this.GetComponent<MeshFilter>();
         _filter.mesh.MarkDynamic();
-        SetMeshCenter();
+        //SetMeshCenter();
 
         _sphereRadius = _filter.mesh.bounds.extents.magnitude;
     }
@@ -38,14 +41,26 @@ public class MeshReductor : MonoBehaviour
 
         if (_isShrinking)
         {
+            bool stopShrinking = false;
             _shrinkTimeCount += Time.deltaTime;
             if (_shrinkTimeCount < _shrinkTotalDuration)
             {
-                ShrinkSphere();
+                float farthestPointToDestination = ShrinkSphere();
+
+                if (farthestPointToDestination < 0.05f)
+                {
+                    stopShrinking = true;
+                }
             }
-            else
+
+            if (_shrinkTimeCount >= _shrinkTotalDuration || stopShrinking)
             {
                 _isShrinking = false;
+
+                if (ReductionDone != null)
+                {
+                    ReductionDone.Invoke();
+                }
             }
         }
 
@@ -104,8 +119,10 @@ public class MeshReductor : MonoBehaviour
         _filter.mesh.SetVertices(vertices);
     }
 
-    void ShrinkSphere()
+    float ShrinkSphere()
     {
+        float highestOriginToDestRatio = 0f;
+
         List<Vector3> vertices = new List<Vector3>(_vertices);
         List<Vector3> normals = new List<Vector3>(_filter.mesh.normals);
 
@@ -150,14 +167,14 @@ public class MeshReductor : MonoBehaviour
                     continue;
                 }
 
-                float range = 0.4f;
+                float range = 0.2f;
                 float acceleration = 2f;
-                float finalRatio = Mathf.Pow(timeRatio, acceleration) + Mathf.Pow(timeRatio, 1f / acceleration) * Mathf.Pow(vertexHeightRatio, acceleration) / 2f;
+                float finalRatio = Mathf.Pow(timeRatio, acceleration) + Mathf.Pow(timeRatio, 1f / acceleration) * Mathf.Pow(distanceRatio, acceleration) / 2f;
 
                 finalRatio = Mathf.Clamp01(finalRatio);
 
                 range *= Mathf.Clamp01(originToDestRatio);
-                vertices[i] += normals[i] * UnityEngine.Random.Range(-_sphereRadius * range, _sphereRadius * range);
+                //vertices[i] += normals[i] * UnityEngine.Random.Range(-_sphereRadius * range, _sphereRadius * range);
                 _vertices[i] = Vector3.Lerp(vertices[i], attractionPoint, finalRatio);
                 vertices[i] = _vertices[i];
             }
@@ -169,8 +186,12 @@ public class MeshReductor : MonoBehaviour
                 //vertices[i] += UnityEngine.Random.onUnitSphere * UnityEngine.Random.Range(-_sphereRadius * range, _sphereRadius * range);
                 vertices[i] += normals[i] * UnityEngine.Random.Range(-_sphereRadius * range, _sphereRadius * range);
             }
+
+            highestOriginToDestRatio = Mathf.Max(highestOriginToDestRatio, originToDestRatio);
         }
 
         _filter.mesh.SetVertices(vertices);
+
+        return highestOriginToDestRatio;
     }
 }
