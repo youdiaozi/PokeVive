@@ -322,11 +322,6 @@ public class Pokemon : MonoBehaviour
     {
         _state = PokemonState.BeingReleased;
 
-        if (!this.gameObject.activeSelf)
-        {
-            this.gameObject.SetActive(true);
-        }
-
         _tr.localScale = Vector3.one / 100000f;
         _anim.speed = 1f;
         _nav.enabled = true;

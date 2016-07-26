@@ -281,7 +281,7 @@ public class Pokeball : MonoBehaviour
                 float horizontalDistanceToPlayer = (playerPos - ballPos).magnitude;
                 if (_content != null && _isPokemonInside && horizontalDistanceToPlayer > 1f && collision.contacts[0].point.y < 0.05f)
                 {
-                    //_content.gameObject.SetActive(true);
+                    _content.gameObject.SetActive(true);
 
                     _destination = _tr.position + Camera.main.transform.right + Vector3.up * Mathf.Max(1f, _content.GetRealHeight() * 1.1f);
 
@@ -539,10 +539,11 @@ public class Pokeball : MonoBehaviour
         {
             // For now Pokéballs are Masterballs.
 
-            float escapeChance = 0.3f; // We should get this value from the Pokemon stats.
+            float escapeChance = 1.0f; // We should get this value from the Pokemon stats.
 
             if (Random.value < escapeChance)
             {
+                _temporaryContent.gameObject.SetActive(true);
                 _temporaryContent.transform.position = _tr.position;
                 _temporaryContent.SetCaptureResult(false);
 
