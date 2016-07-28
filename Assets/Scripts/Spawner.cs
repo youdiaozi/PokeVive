@@ -13,20 +13,6 @@ public class Spawner : MonoBehaviour
 
     void Start()
     {
-        Vector3 result;
-        result = Vector3.Project(new Vector3(-2f, -2f, 0), new Vector3(1f, 0, 0));
-        result = Vector3.Project(new Vector3(3f, 3f, 0), new Vector3(1f, 0, 0));
-        result = Vector3.Project(new Vector3(1f, 0, 0), new Vector3(1f, 0, 0));
-        result = Vector3.Project(new Vector3(0f, 1f, 0), new Vector3(1f, 0, 0));
-
-        Plane pl = new Plane(new Vector3(0, 0, -1f), new Vector3(0, 0, 1f));
-        Ray ray = new Ray(new Vector3(0, 1f, -1f), new Vector3(0, 1f, 1f).normalized);
-        float dist;
-
-        bool oo;
-        oo = pl.Raycast(ray, out dist);
-        Vector3 intersection = ray.origin + dist * ray.direction;
-
         if (_amount <= 0)
         {
             Debug.Log("Amount of Pokemons to spawn = 0");

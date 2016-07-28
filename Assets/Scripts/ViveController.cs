@@ -51,24 +51,51 @@ public class ViveController : MonoBehaviour
 
                 if (device.GetPressDown(SteamVR_Controller.ButtonMask.Trigger))
                 {
-                    GrabbableObj closestObj = null;
-                    float shortestDistance = float.MaxValue;
-                    Vector3 myPos = this.transform.position;
-
-                    foreach (GrabbableObj obj in _touchedObj)
+                    if (Bag.TakePokeball(_tr.position))
                     {
-                        float dist = (obj.transform.position - myPos).sqrMagnitude;
+                        Debug.LogWarning("Grabbing a pokeball !");
+                        // The player picks an empty Pokeball.
+                        GameObject pokeball = (GameObject)GameObject.Instantiate(Resources.Load("PokeBall"), _attachPoint.position, _attachPoint.rotation);
 
-                        if (dist < shortestDistance)
+                        if (pokeball == null)
                         {
-                            shortestDistance = dist;
-                            closestObj = obj;
+                            Debug.LogError("Can't instantiate Pokeball");
+                        }
+                        else
+                        {
+                            GrabbableObj grabbableObj = pokeball.GetComponent<GrabbableObj>();
+
+                            if (grabbableObj == null)
+                            {
+                                Debug.LogError("No GrabbableObj found in " + pokeball.name);
+                            }
+                            else
+                            {
+                                StartCoroutine(GrabObjNextFrameCoroutine(grabbableObj));
+                            }
                         }
                     }
-
-                    if (closestObj != null)
+                    else
                     {
-                        GrabObj(closestObj);
+                        GrabbableObj closestObj = null;
+                        float shortestDistance = float.MaxValue;
+                        Vector3 myPos = this.transform.position;
+
+                        foreach (GrabbableObj obj in _touchedObj)
+                        {
+                            float dist = (obj.transform.position - myPos).sqrMagnitude;
+
+                            if (dist < shortestDistance)
+                            {
+                                shortestDistance = dist;
+                                closestObj = obj;
+                            }
+                        }
+
+                        if (closestObj != null)
+                        {
+                            GrabObj(closestObj);
+                        }
                     }
                 }
 
@@ -109,6 +136,13 @@ public class ViveController : MonoBehaviour
         {
             _touchedObj.Remove(grabbableObj);
         }
+    }
+
+    IEnumerator GrabObjNextFrameCoroutine(GrabbableObj grabbableObj)
+    {
+        yield return new WaitForEndOfFrame();
+
+        GrabObj(grabbableObj);
     }
 
     private void GrabObj(GrabbableObj grabbableObj)

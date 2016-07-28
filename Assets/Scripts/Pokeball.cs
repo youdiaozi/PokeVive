@@ -288,32 +288,41 @@ public class Pokeball : MonoBehaviour
                 Vector2 ballPos = new Vector2(_tr.position.x, _tr.position.z);
 
                 float horizontalDistanceToPlayer = (playerPos - ballPos).magnitude;
-                if (_content != null && _isPokemonInside && horizontalDistanceToPlayer > 1f && collision.contacts[0].point.y < 0.05f)
+                if (_content != null && _isPokemonInside && horizontalDistanceToPlayer > 1f)
                 {
-                    _content.gameObject.SetActive(true);
-
-                    _destination = _tr.position + Camera.main.transform.right + Vector3.up * Mathf.Max(1f, _content.GetRealHeight() * 1.1f);
-
-                    _content.transform.position = _tr.position;
-
-                    Vector3 forward = _tr.position - Camera.main.transform.position;
-                    forward.y = 0f;
-                    forward.Normalize();
-
-                    // We want to keep at least 50cm between the trainer and the Pokémon he is currently releasing from the this pokeball.
-                    float pkmnDepth = _content.GetBaseBoundingBoxSize().z / 2f;
-                    if (horizontalDistanceToPlayer < 0.5f + pkmnDepth)
+                    if (collision.contacts[0].point.y < 0.05f && Trainer._pkmnInBattle == null)
                     {
-                        _content.transform.position += forward * (pkmnDepth + 0.5f - horizontalDistanceToPlayer);
+                        _content.gameObject.SetActive(true);
+                        Trainer._pkmnInBattle = _content;
+
+                        _destination = _tr.position + Camera.main.transform.right + Vector3.up * Mathf.Max(1f, _content.GetRealHeight() * 1.1f);
+
+                        _content.transform.position = _tr.position;
+
+                        Vector3 forward = _tr.position - Camera.main.transform.position;
+                        forward.y = 0f;
+                        forward.Normalize();
+
+                        // We want to keep at least 50cm between the trainer and the Pokémon he is currently releasing from the this pokeball.
+                        float pkmnDepth = _content.GetBaseBoundingBoxSize().z / 2f;
+                        if (horizontalDistanceToPlayer < 0.5f + pkmnDepth)
+                        {
+                            _content.transform.position += forward * (pkmnDepth + 0.5f - horizontalDistanceToPlayer);
+                        }
+
+                        _content.transform.LookAt(_content.transform.position + forward, Vector3.up);
+
+                        Freeze(true);
+                        _state = PokeballState.BouncingBack;
+
+                        PlaySound("PokemonImpact");
+                        soundPlayed = true;
                     }
-
-                    _content.transform.LookAt(_content.transform.position + forward, Vector3.up);
-
-                    Freeze(true);
-                    _state = PokeballState.BouncingBack;
-
-                    PlaySound("PokemonImpact");
-                    soundPlayed = true;
+                    else
+                    {
+                        // The trainer tried to send out his Pokémon, but his throw ended in a wrong spot. So we tell the Pokéball to go back.
+                        StartBacking();
+                    }
                 }
                 else if (_content == null) // A virer ? 
                 {
@@ -847,8 +856,7 @@ public class Pokeball : MonoBehaviour
 
     public void Recall()
     {
-        // This is a temporary version, à virer. A améliorer pour être précis.
-
+        Trainer._pkmnInBattle = null;
         _content.gameObject.SetActive(false);
         _isPokemonInside = true;
         _content.StoreInPokeball();
@@ -950,6 +958,7 @@ public class Pokeball : MonoBehaviour
             _temporaryContent.gameObject.SetActive(true);
             _temporaryContent.transform.position = _tr.position;
             _temporaryContent.SetCaptureResult(false);
+            Spawner.WildPokemons.Add(_temporaryContent.GetComponent<SphereCollider>());
             _temporaryContent = null;
         }
 
@@ -958,6 +967,7 @@ public class Pokeball : MonoBehaviour
             _content.gameObject.SetActive(true);
             _content.transform.position = _tr.position;
             _content.SetCaptureResult(false);
+            Spawner.WildPokemons.Add(_content.GetComponent<SphereCollider>());
             _content = null;
         }
 
