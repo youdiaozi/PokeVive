@@ -40,6 +40,9 @@ public class Pokeball : MonoBehaviour
     public TextMeshPro _pkmnName;
     public LaserEmitter _laser;
     public AudioClip[] _audioClips;
+    public Transform _topPart;
+    public Transform _bottomPart;
+    public Transform _buttonPart;
 
     private const float _pokeballCatchRadius = 0.1f; // The real pokeball radius is 0.05.
 
@@ -52,6 +55,7 @@ public class Pokeball : MonoBehaviour
     private bool _shrinked = false;
     private bool _isRecalling = false; // True when the Pokéball is trying to call back its Pokémon using its red laser.
     private bool _isPokemonInside = false; // False when the Pokemon contains a Pokemon but the pkmn is out of the pokeball, for a battle for instance.
+    [HideInInspector]
     public Pokemon _content = null; // The Pokémon the Pokéball contains.
     private Pokemon _temporaryContent = null; // The Pokémon the Pokéball contains.
     private PokeballState _state = PokeballState.Lying;
@@ -120,6 +124,11 @@ public class Pokeball : MonoBehaviour
         //}
 
         // --- Any kind of Pokeball. ---
+
+        if (Input.GetKeyDown(KeyCode.E))
+        {
+            Explode();
+        }
 
         if (_state == PokeballState.Lying
             || _state == PokeballState.Held
@@ -317,13 +326,14 @@ public class Pokeball : MonoBehaviour
 
                     _missedShots++;
 
-                    if (_missedShots > 12)
+                    if (_missedShots > 4)
                     {
-                        _state = PokeballState.Breaking;
+                        Explode();
                     }
                     else
                     {
-                        StartBacking();
+                        _state = PokeballState.Lying;
+                        //StartBacking();
                     }
                 }
                 else
@@ -460,7 +470,6 @@ public class Pokeball : MonoBehaviour
                             // Pokémon touched! 
 
                             Debug.Log(pk.name + " as been touched!");
-                            PlaySound("PokemonImpact");
 
                             Pokemon pkmn = pkTr.GetComponent<Pokemon>();
                             _destination = pkmn.Touched(this);
@@ -471,6 +480,8 @@ public class Pokeball : MonoBehaviour
                                 _state = PokeballState.Breaking;
                                 return false;
                             }
+
+                            PlaySound("PokemonImpact");
 
                             _state = PokeballState.BouncingBack;
                             _destination += _tr.position;
@@ -539,16 +550,11 @@ public class Pokeball : MonoBehaviour
         {
             // For now Pokéballs are Masterballs.
 
-            float escapeChance = 1.0f; // We should get this value from the Pokemon stats.
+            float escapeChance = 0.045f; // We should get this value from the Pokemon stats. // 0.045 escape chance makes a capture probability between 75% to 83% after 4 to 6 shakes.
 
             if (Random.value < escapeChance)
             {
-                _temporaryContent.gameObject.SetActive(true);
-                _temporaryContent.transform.position = _tr.position;
-                _temporaryContent.SetCaptureResult(false);
-
-                // I stopped working here. From here, we need to release the Pokemon before breaking the pokeball (explosion).
-                Destroy(this.gameObject);
+                Explode();
             }
             else
             {
@@ -931,6 +937,129 @@ public class Pokeball : MonoBehaviour
                 _audioSource.Stop();
             }
         }
+    }
 
+    void Explode()
+    {
+        _state = PokeballState.Breaking;
+
+        _animator.SetBool("RedLightOn", false);
+
+        if (_temporaryContent != null)
+        {
+            _temporaryContent.gameObject.SetActive(true);
+            _temporaryContent.transform.position = _tr.position;
+            _temporaryContent.SetCaptureResult(false);
+            _temporaryContent = null;
+        }
+
+        if (_content != null)
+        {
+            _content.gameObject.SetActive(true);
+            _content.transform.position = _tr.position;
+            _content.SetCaptureResult(false);
+            _content = null;
+        }
+
+        if (_bottomPart == null || _topPart == null)
+        {
+            return;
+        }
+
+        Destroy(_grabbableObj);
+        Destroy(_animator);
+
+        Vector3 explosionPos = _tr.position;
+        explosionPos.y = 0f;
+
+        Rigidbody bottomRigid = _bottomPart.parent.gameObject.AddComponent<Rigidbody>();
+        CopyRigidbody(_rigid, ref bottomRigid);
+        bottomRigid.AddExplosionForce(60f, explosionPos, 10f);
+        bottomRigid.angularVelocity = Random.onUnitSphere;
+        _bottomPart.GetComponent<MeshCollider>().enabled = true;
+
+        Rigidbody topRigid = _topPart.parent.gameObject.AddComponent<Rigidbody>();
+        CopyRigidbody(_rigid, ref topRigid);
+        topRigid.AddExplosionForce(60f, explosionPos, 10f);
+        topRigid.angularVelocity = Random.onUnitSphere;
+        _topPart.GetComponent<MeshCollider>().enabled = true;
+
+        if (_buttonPart != null)
+        {
+            _buttonPart.GetComponent<MeshCollider>().enabled = true;
+        }
+
+        Destroy(_rigid);
+
+        // Then we should destroy the pokeball a little later, ideally with an animation.
+        StartCoroutine(DestroyWithDelayCoroutine(topRigid, bottomRigid, 4f, 10f, 0.5f));
+    }
+
+    void CopyRigidbody(Rigidbody source, ref Rigidbody dest)
+    {
+        dest.mass = source.mass / 2f;
+        dest.drag = Mathf.Max(source.drag, 0.25f);
+        dest.angularDrag = Mathf.Max(source.angularDrag, 0.25f);
+        dest.useGravity = source.useGravity;
+        dest.isKinematic = source.isKinematic;
+    }
+
+    IEnumerator DestroyWithDelayCoroutine(Rigidbody top_, Rigidbody bottom_, float minDelayBeforeShrinking_, float maxDelayBeforeShrinking_, float shrinkingDelay_)
+    {
+        if (maxDelayBeforeShrinking_ <= minDelayBeforeShrinking_)
+        {
+            maxDelayBeforeShrinking_ = minDelayBeforeShrinking_ * 1.5f;
+            Debug.LogWarning("minDelayBeforeShrinking_ >= maxDelayBeforeShrinking_ in " + this.name + "\nSetting maxDelayBeforeShrinking_ to " + maxDelayBeforeShrinking_);
+        }
+
+        float stabilizationTime = 0f;
+
+        if (maxDelayBeforeShrinking_ > 0f)
+        {
+            float maxVel = 0.1f;
+            while (stabilizationTime < maxDelayBeforeShrinking_)
+            {
+                stabilizationTime += Time.deltaTime;
+
+                if (top_.velocity.magnitude < maxVel
+                    && top_.angularVelocity.magnitude < maxVel
+                    && bottom_.velocity.magnitude < maxVel
+                    && bottom_.angularVelocity.magnitude < maxVel)
+                {
+                    break;
+                }
+
+                yield return new WaitForEndOfFrame();
+            }
+        }
+
+        if (stabilizationTime < minDelayBeforeShrinking_)
+        {
+            yield return new WaitForSeconds(minDelayBeforeShrinking_ - stabilizationTime);
+        }
+
+        if (shrinkingDelay_ > 0f)
+        {
+            Vector3 topBaseScale = top_.transform.localScale;
+            Vector3 bottomBaseScale = bottom_.transform.localScale;
+            float shrinkingTimeLeft = shrinkingDelay_;
+
+            while (shrinkingTimeLeft > 0f)
+            {
+                shrinkingTimeLeft -= Time.deltaTime;
+
+                if (shrinkingTimeLeft <= 0f)
+                {
+                    break;
+                }
+
+                top_.transform.localScale = topBaseScale * Mathf.Pow((shrinkingTimeLeft / shrinkingDelay_), 0.5f);
+                bottom_.transform.localScale = bottomBaseScale * Mathf.Pow((shrinkingTimeLeft / shrinkingDelay_), 0.5f);
+
+                yield return new WaitForEndOfFrame();
+            }
+        }
+
+        Destroy(this.gameObject);
     }
 }
